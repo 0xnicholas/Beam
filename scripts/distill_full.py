@@ -52,15 +52,17 @@ TEACHER_MODEL = "deepseek/deepseek-v4-pro"
 GATEWAY_URL = "http://127.0.0.1:3005"
 # Pacing posture proven on the 2026-09-12 full149 runs and the #18 pilot:
 # >= 3s between call starts (headroom vs the ~35/min observed trip point).
-# 2026-09-26 full-scale latency profile (measured on the first launch):
-# the teacher reasons ~6k tokens per call -> ~55s typical, with occasional
-# hung generations; timeout 240s + 3 transport retries absorb them, and
-# 12 workers keep throughput at the pace cap (~20 starts/min) anyway.
-# ETA ~10-11h for the ~6.9k fresh chunks; the crash journal absorbs kills.
+# 2026-09-26 full-scale latency profile (measured on two live launches):
+# the teacher reasons ~6-12k tokens per call (55s small sysprompt chunk,
+# 216s for a 510-token dialogue chunk — legitimately; reasoning_effort
+# experiments documented in the sizing doc) — timeout 420s + 2 transport
+# retries fit that distribution without burning slow-but-legit calls, and
+# 24 workers put the ETA at ~12h for the ~6.9k fresh chunks; the crash
+# journal absorbs kills (replays verified twice on real crashes today).
 MIN_CALL_INTERVAL = 3.0
-CONCURRENCY = 12
-TIMEOUT_SECONDS = 240.0
-MAX_RETRIES = 3
+CONCURRENCY = 24
+TIMEOUT_SECONDS = 420.0
+MAX_RETRIES = 2
 
 MAX_CHUNK_TOKENS = 512
 WINDOW_SIZE = 150
