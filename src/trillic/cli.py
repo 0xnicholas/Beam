@@ -46,7 +46,7 @@ from trillic.dialogue import (
     load_families as load_dialogue_families,
     make_review as make_dialogue_review,
 )
-from trillic.distill import DistillError, run_distillation
+from trillic.distill import DistillError, collect_distill_errors, run_distillation
 from trillic.golden import GoldenError, collect_golden_errors, load_golden
 from trillic.judge import JudgeError
 from trillic.longbench import LongBenchError, build_manifest, build_rag_entries
@@ -520,6 +520,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="record that the repo was dirty at generation time",
     )
 
+    distill_validate_parser = distill_sub.add_parser(
+        "validate",
+        help="validate a distillation output dir (labeled bytes vs manifest, "
+        "row schema, counts consistency) and optionally its freeze record "
+        "(issue #20: the stage-3 data version anchor)",
+    )
+    distill_validate_parser.add_argument(
+        "dir", type=Path,
+        help="distillation output dir (manifest.json + labeled.jsonl)",
+    )
+    distill_validate_parser.add_argument(
+        "--freeze", type=Path, default=None, metavar="PATH",
+        help="training-set freeze record (JSON); its pinned repo-relative "
+        "paths resolve against the current directory (run from the repo root)",
+    )
+
     train_parser = subparsers.add_parser(
         "train",
         help="training line (labeled pilot dataset -> HF checkpoint)",
@@ -596,6 +612,8 @@ def main(argv: list[str] | None = None) -> int:
         try:
             if args.distill_command == "run":
                 return _distill_run(args)
+            if args.distill_command == "validate":
+                return _distill_validate(args)
         except (DistillError, GatewayError, ValueError, OSError) as e:
             print(f"error: {e}", file=sys.stderr)
             return _ERROR_EXIT_CODE
@@ -767,6 +785,23 @@ def _distill_run(args: argparse.Namespace) -> int:
         f"reused {gateway_block['calls_reused']}); "
         f"manifest: {args.out / 'manifest.json'}"
     )
+    return 0
+
+
+def _distill_validate(args: argparse.Namespace) -> int:
+    """0 = valid (bytes vs manifest + row schema + counts [+ freeze])."""
+    errors = collect_distill_errors(args.dir, freeze_path=args.freeze)
+    if errors:
+        for error in errors:
+            print(f"error: {error}", file=sys.stderr)
+        return _ERROR_EXIT_CODE
+    rows = sum(
+        1
+        for line in (args.dir / "labeled.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    )
+    suffix = f"; freeze {args.freeze} verified" if args.freeze is not None else ""
+    print(f"{args.dir}: ok ({rows} labeled rows{suffix})")
     return 0
 
 

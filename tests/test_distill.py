@@ -4,9 +4,11 @@ The seams under test are the LLMLingua-2 method ports (arXiv:2403.12968,
 label_word.py): deterministic word-level fuzzy matching, VR/AG metrics,
 sentence-aligned chunking, and the sequential quality-control filters.
 Orchestration (journal resume, CLI) is covered below and in
-test_cli_distill.py.
+test_cli_distill.py; the issue-20 freeze/validate surface is covered at
+the bottom of both files.
 """
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -16,7 +18,9 @@ from trillic.distill import (
     DistillError,
     PROMPT_TEMPLATE,
     PROMPT_VERSION,
+    build_freeze_record,
     chunk_text,
+    collect_distill_errors,
     distill_metrics,
     label_chunk,
     match_labels,
@@ -640,3 +644,192 @@ class TestRunDistillation:
         a = (tmp_path / "out" / "labeled.jsonl").read_text(encoding="utf-8")
         b = (tmp_path / "out-par" / "labeled.jsonl").read_text(encoding="utf-8")
         assert a == b
+
+    def test_token_empty_chunks_are_skipped_not_billed(self, tmp_path):
+        # a punctuation/whitespace-only chunk (", ") has no labelable
+        # words: it must not reach the teacher or the dataset (full-scale
+        # corpus has 65 of these; pilot-scale never hit one)
+        rows = [_entry("r1", "rag", "one two three."), _entry("r2", "rag", ", ")]
+        corpus = [_write_corpus(tmp_path, "c.jsonl", rows)]
+        teacher = ScriptedTeacher()
+        manifest = self._run(
+            corpus, tmp_path, teacher,
+            chunk_budgets={"rag": 10}, max_chunk_tokens=32,
+        )
+        assert manifest["counts"]["token_empty_chunks_skipped"] == 1
+        assert manifest["counts"]["chunks"] == 1
+        assert teacher.calls == 1
+        labeled = (tmp_path / "out" / "labeled.jsonl").read_text(encoding="utf-8")
+        assert "r2" not in labeled
+
+    def test_all_token_empty_selection_refused(self, tmp_path):
+        corpus = [_write_corpus(tmp_path, "c.jsonl", [_entry("r1", "rag", ", ")])]
+        with pytest.raises(DistillError, match="zero compressible chunks"):
+            self._run(
+                corpus, tmp_path, ScriptedTeacher(),
+                chunk_budgets={"rag": 10}, max_chunk_tokens=32,
+            )
+
+
+# ---------------------------------------------------------------------------
+# Freeze + validation (issue #20): the stage-3 data version anchor
+# ---------------------------------------------------------------------------
+
+
+def _run_fixture(corpus_paths, tmp_path, **overrides):
+    return TestRunDistillation._run(corpus_paths, tmp_path, ScriptedTeacher(), **overrides)
+
+
+def _flip_first_keep(labeled_path: Path) -> None:
+    """Drift the labeled bytes in place (one keep flag toggled)."""
+    rows = [
+        json.loads(line)
+        for line in labeled_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    rows[0]["tokens"][0][3] = 1 - rows[0]["tokens"][0][3]
+    labeled_path.write_text(
+        "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows),
+        encoding="utf-8",
+    )
+
+
+class TestCollectDistillErrors:
+    def test_clean_run_validates(self, corpus_paths, tmp_path):
+        out = _run_fixture(corpus_paths, tmp_path)
+        assert collect_distill_errors(tmp_path / "out") == []
+        assert out["counts"]["labeled_kept"] > 0
+
+    def test_missing_dir(self, tmp_path):
+        errors = collect_distill_errors(tmp_path / "nope")
+        assert errors and "no such" in errors[0]
+
+    def test_missing_manifest(self, tmp_path):
+        out = tmp_path / "out"
+        out.mkdir()
+        (out / "labeled.jsonl").write_text("", encoding="utf-8")
+        errors = collect_distill_errors(out)
+        assert any("manifest.json" in e and "missing" in e for e in errors)
+
+    def test_labeled_drift_detected(self, corpus_paths, tmp_path):
+        _run_fixture(corpus_paths, tmp_path)
+        _flip_first_keep(tmp_path / "out" / "labeled.jsonl")
+        errors = collect_distill_errors(tmp_path / "out")
+        assert any("labeled.jsonl" in e and "sha256" in e for e in errors)
+
+    def test_row_schema_error_collected(self, corpus_paths, tmp_path):
+        _run_fixture(corpus_paths, tmp_path)
+        labeled = tmp_path / "out" / "labeled.jsonl"
+        with labeled.open("a", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(
+                    {"id": "zzz", "load_type": "rag", "prompt": "abc",
+                     "tokens": [["a", 0, 1, 2]]}
+                )
+                + "\n"
+            )
+        errors = collect_distill_errors(tmp_path / "out")
+        assert any("line" in e and "keep" in e for e in errors)
+
+    def test_duplicate_row_id_detected(self, corpus_paths, tmp_path):
+        _run_fixture(corpus_paths, tmp_path)
+        labeled = tmp_path / "out" / "labeled.jsonl"
+        first = labeled.read_text(encoding="utf-8").splitlines()[0]
+        with labeled.open("a", encoding="utf-8") as handle:
+            handle.write(first + "\n")
+        errors = collect_distill_errors(tmp_path / "out")
+        assert any("duplicate" in e for e in errors)
+
+    def test_counts_inconsistency_detected(self, corpus_paths, tmp_path):
+        _run_fixture(corpus_paths, tmp_path)
+        manifest_path = tmp_path / "out" / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["counts"]["labeled_kept"] += 1
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        errors = collect_distill_errors(tmp_path / "out")
+        assert any("counts" in e for e in errors)
+
+
+class TestFreezeRecord:
+    def _freeze(self, out: Path, tmp_path: Path) -> tuple[dict, Path]:
+        upstream = tmp_path / "corpus-manifest.json"
+        upstream.write_text(
+            json.dumps({"corpus": {"sha256": "upstream"}}), encoding="utf-8"
+        )
+        record = build_freeze_record(
+            out,
+            record_dir=str(out),
+            corpus_manifests=[(upstream, str(upstream)), (upstream, str(upstream))],
+            repo_commit="deadbeef",
+            repo_dirty=False,
+        )
+        freeze_path = tmp_path / "freeze.json"
+        freeze_path.write_text(
+            json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+        return record, freeze_path
+
+    def test_freeze_roundtrip_validates(self, corpus_paths, tmp_path):
+        manifest = _run_fixture(corpus_paths, tmp_path)
+        out = tmp_path / "out"
+        record, freeze_path = self._freeze(out, tmp_path)
+        assert collect_distill_errors(out, freeze_path=freeze_path) == []
+        assert record["generated_by"]["repo_commit"] == "deadbeef"
+        assert record["distill"]["labeled"]["sha256"] == (
+            manifest["outputs"]["labeled"]["sha256"]
+        )
+        assert record["distill"]["manifest_sha256"] == hashlib.sha256(
+            (out / "manifest.json").read_bytes()
+        ).hexdigest()
+        # the freeze pins the upstream chain: corpus files + their manifests
+        assert len(record["corpus"]) == 2
+        assert all(len(c["manifest_sha256"]) == 64 for c in record["corpus"])
+        # teacher + QC copied from the distill manifest
+        assert record["teacher"]["model"] == "fixture/teacher"
+        assert record["quality_control"] == manifest["quality_control"]
+
+    def test_mix_records_both_calibers(self, corpus_paths, tmp_path):
+        _run_fixture(
+            corpus_paths, tmp_path,
+            chunk_budgets={"rag": 99, "system_prompt": 99, "dialogue": 99},
+        )
+        record, _ = self._freeze(tmp_path / "out", tmp_path)
+        entry_pct = record["mix"]["entry_level_pct"]
+        # fixture: 2 rag + 3 system_prompt + 3 dialogue entries, all selected
+        assert entry_pct == {"rag": 25.0, "system_prompt": 37.5, "dialogue": 37.5}
+        row_pct = record["mix"]["row_level_pct"]
+        assert set(row_pct) == {"rag", "system_prompt", "dialogue"}
+        assert abs(sum(row_pct.values()) - 100.0) < 0.2
+
+    def test_freeze_refuses_broken_output(self, corpus_paths, tmp_path):
+        _run_fixture(corpus_paths, tmp_path)
+        _flip_first_keep(tmp_path / "out" / "labeled.jsonl")
+        with pytest.raises(DistillError, match="refusing to freeze"):
+            self._freeze(tmp_path / "out", tmp_path)
+
+    def test_freeze_detects_labeled_drift(self, corpus_paths, tmp_path):
+        _run_fixture(corpus_paths, tmp_path)
+        out = tmp_path / "out"
+        _, freeze_path = self._freeze(out, tmp_path)
+        _flip_first_keep(out / "labeled.jsonl")
+        errors = collect_distill_errors(out, freeze_path=freeze_path)
+        assert any("freeze" in e or "frozen" in e for e in errors)
+
+    def test_freeze_detects_corpus_drift(self, corpus_paths, tmp_path):
+        _run_fixture(corpus_paths, tmp_path)
+        out = tmp_path / "out"
+        _, freeze_path = self._freeze(out, tmp_path)
+        corpus_paths[0].write_text(
+            corpus_paths[0].read_text(encoding="utf-8") + "\n", encoding="utf-8"
+        )
+        errors = collect_distill_errors(out, freeze_path=freeze_path)
+        assert any("corpus" in e and "sha256" in e for e in errors)
+
+    def test_freeze_schema_version_checked(self, corpus_paths, tmp_path):
+        _run_fixture(corpus_paths, tmp_path)
+        out = tmp_path / "out"
+        record, freeze_path = self._freeze(out, tmp_path)
+        record["schema_version"] = 99
+        freeze_path.write_text(json.dumps(record), encoding="utf-8")
+        errors = collect_distill_errors(out, freeze_path=freeze_path)
+        assert any("schema_version" in e for e in errors)

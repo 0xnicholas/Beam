@@ -49,11 +49,14 @@ from trillic.tokens import TokenCounter
 
 __all__ = [
     "DistillError",
+    "FREEZE_RECORD_SCHEMA_VERSION",
     "PROMPT_TEMPLATE",
     "PROMPT_VERSION",
     "TextChunk",
     "WordTok",
+    "build_freeze_record",
     "chunk_text",
+    "collect_distill_errors",
     "word_tokens",
     "match_labels",
     "distill_metrics",
@@ -752,11 +755,24 @@ def run_distillation(
         row: dict
         chunk: TextChunk
 
-    jobs: list[Job] = [
-        Job(key=f"{row['id']}#c{chunk.index}", row=row, chunk=chunk)
-        for row in selected
-        for chunk in chunks_by_id[row["id"]]
-    ]
+    jobs: list[Job] = []
+    token_empty = 0
+    for row in selected:
+        for chunk in chunks_by_id[row["id"]]:
+            # Punctuation/whitespace-only chunks (a boundary-packing
+            # remnant: a lone ", " etc.) carry no labelable words — their
+            # metrics are 0/0-undefined and compressing them is pointless
+            # spend. Skip and count them. Every OTHER chunk keeps its
+            # index, so journal keys stay byte-stable across the fix.
+            if not word_tokens(chunk.text):
+                token_empty += 1
+                continue
+            jobs.append(Job(key=f"{row['id']}#c{chunk.index}", row=row, chunk=chunk))
+    if not jobs:
+        raise DistillError(
+            "the selection produced zero compressible chunks (every chunk "
+            "is token-empty) — nothing to distill"
+        )
     lid = distill_ledger_id(
         corpus_shas=[f["sha256"] for f in files],
         teacher_model=teacher_model,
@@ -834,6 +850,7 @@ def run_distillation(
         "corpus_entries": len(rows),
         "selected_entries": len(selected),
         "chunks": len(jobs),
+        "token_empty_chunks_skipped": token_empty,
         "labeled_kept": len(kept),
         "dropped": len(labeled_rows) - len(kept),
         "by_load_type": by_load_type,
@@ -1062,3 +1079,367 @@ def _render_report_md(report: dict) -> str:
         "",
     ]
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Freeze + validation (issue #20): the stage-3 data version anchor
+# ---------------------------------------------------------------------------
+
+FREEZE_RECORD_SCHEMA_VERSION = 1
+
+FREEZE_ROLE = (
+    "stage-3 data version anchor: every acceptance attempt (at most 3, "
+    "roadmap 阶段 3 止损) trains on bytes pinned here; a per-attempt "
+    "row-level resample derives from THIS pool and pins its own file "
+    "sha256 + sampling rule in that attempt's run record"
+)
+
+_FREEZE_EXCLUSIONS = {
+    "meetingbank": (
+        "hard-excluded from training and eval (docs/data-strategy.md "
+        "硬约束 1: it is the base checkpoint's training set) — enforced "
+        "upstream by the corpus validators, re-pinned here by the corpus "
+        "file shas"
+    ),
+    "customer_prompts": (
+        "never used for training or eval (硬约束 2: privacy boundary, "
+        "no exceptions)"
+    ),
+}
+
+_MIX_ROW_POLICY = (
+    "the frozen set keeps EVERY QC-passed row (no row-level downsampling — "
+    "docs/baselines/2026-09-26-distill-sizing-decision.md); row-level "
+    "rebalancing is a stage-3 per-attempt variable whose derived file "
+    "sha256 + sampling rule land in that attempt's run record"
+)
+
+
+def _sha256_file(path: Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _check_labeled_row(
+    row: object, path: Path, line_no: int, seen_ids: set[str], errors: list[str]
+) -> None:
+    """One labeled.jsonl row against the issue-18 output schema (the same
+    shape train.load_labeled_dataset enforces, collecting every problem)."""
+    where = f"{path}: line {line_no}"
+    if not isinstance(row, dict):
+        errors.append(f"{where}: each row must be a JSON object")
+        return
+    row_id = row.get("id")
+    if not isinstance(row_id, str) or not row_id.strip():
+        errors.append(f"{where}: id must be a non-empty string")
+    elif row_id in seen_ids:
+        errors.append(f"{where}: duplicate id {row_id!r}")
+    else:
+        seen_ids.add(row_id)
+    if row.get("load_type") not in _LOAD_TYPES:
+        errors.append(
+            f"{where}: load_type must be one of {list(_LOAD_TYPES)}, "
+            f"got {row.get('load_type')!r}"
+        )
+    prompt = row.get("prompt")
+    if not isinstance(prompt, str) or not prompt.strip():
+        errors.append(f"{where}: prompt must be a non-empty string")
+        return  # span bounds are meaningless without the prompt
+    tokens = row.get("tokens")
+    if not isinstance(tokens, list) or not tokens:
+        errors.append(f"{where}: tokens must be a non-empty list")
+        return
+    last_end = 0
+    for tok in tokens:
+        if not (isinstance(tok, list) and len(tok) == 4):
+            errors.append(f"{where}: token rows are [text, start, end, keep]")
+            return
+        _, start, end, keep = tok
+        if not (isinstance(start, int) and isinstance(end, int)) or not (
+            last_end <= start < end <= len(prompt)
+        ):
+            errors.append(
+                f"{where}: span [{start}, {end}) out of bounds or unordered "
+                f"(prompt is {len(prompt)} chars)"
+            )
+            return
+        if keep not in (0, 1):
+            errors.append(f"{where}: keep label {keep!r} must be 0 or 1")
+            return
+        last_end = end
+
+
+def collect_distill_errors(
+    out_dir: Path,
+    *,
+    freeze_path: Path | None = None,
+    base_dir: Path | None = None,
+) -> list[str]:
+    """Validate a distillation output dir; empty list = valid.
+
+    Checks, in order: manifest.json parses; labeled.jsonl exists, matches
+    the manifest's sha256 + row count, and every row satisfies the schema
+    (id unique, load_type known, token spans ordered in-bounds, keep in
+    {0,1}); the manifest's counts are internally consistent (chunks -
+    kept == dropped == VR + AG drop counts). With ``freeze_path`` the
+    frozen identity is additionally re-proved against the live bytes:
+    labeled sha/rows, the distill manifest sha, and every pinned corpus
+    file + upstream manifest sha. Freeze-recorded relative paths resolve
+    against ``base_dir`` (default: the current directory — run from the
+    repo root).
+    """
+    out_dir = Path(out_dir)
+    errors: list[str] = []
+    if not out_dir.is_dir():
+        return [f"{out_dir}: no such distillation output dir"]
+    manifest_path = out_dir / "manifest.json"
+    labeled_path = out_dir / "labeled.jsonl"
+
+    manifest: dict | None = None
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        errors.append(f"{manifest_path}: missing — not a distillation output dir")
+    except (OSError, json.JSONDecodeError) as e:
+        errors.append(f"{manifest_path}: cannot parse ({e})")
+
+    labeled_sha: str | None = None
+    row_count: int | None = None
+    if labeled_path.is_file():
+        labeled_sha = _sha256_file(labeled_path)
+        seen_ids: set[str] = set()
+        row_count = 0
+        for line_no, line in enumerate(
+            labeled_path.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            if not line.strip():
+                continue
+            row_count += 1
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError as e:
+                errors.append(f"{labeled_path}: line {line_no}: cannot parse JSON: {e}")
+                continue
+            _check_labeled_row(row, labeled_path, line_no, seen_ids, errors)
+    else:
+        errors.append(f"{labeled_path}: missing")
+
+    if manifest is not None:
+        outputs = manifest.get("outputs", {}).get("labeled", {})
+        counts = manifest.get("counts", {})
+        drop_counts = manifest.get("quality_control", {}).get("drop_counts", {})
+        if labeled_sha is not None and outputs.get("sha256") != labeled_sha:
+            errors.append(
+                f"{labeled_path}: sha256 {labeled_sha[:12]}… != manifest "
+                f"outputs.labeled.sha256 {str(outputs.get('sha256'))[:12]}… — "
+                "the labeled bytes drifted from their manifest"
+            )
+        if row_count is not None:
+            if outputs.get("rows") != row_count:
+                errors.append(
+                    f"{labeled_path}: {row_count} rows != manifest "
+                    f"outputs.labeled.rows {outputs.get('rows')!r}"
+                )
+            if counts.get("labeled_kept") != row_count:
+                errors.append(
+                    f"{manifest_path}: counts.labeled_kept "
+                    f"{counts.get('labeled_kept')!r} != {row_count} rows in "
+                    "labeled.jsonl — counts are inconsistent"
+                )
+        chunks, kept, dropped = (
+            counts.get("chunks"),
+            counts.get("labeled_kept"),
+            counts.get("dropped"),
+        )
+        if None not in (chunks, kept, dropped) and chunks - kept != dropped:
+            errors.append(
+                f"{manifest_path}: counts.chunks ({chunks}) - labeled_kept "
+                f"({kept}) != dropped ({dropped})"
+            )
+        vr_dropped = drop_counts.get("variation_rate")
+        ag_dropped = drop_counts.get("alignment_gap")
+        if None not in (vr_dropped, ag_dropped, dropped) and vr_dropped + ag_dropped != dropped:
+            errors.append(
+                f"{manifest_path}: quality_control drop counts "
+                f"({vr_dropped} + {ag_dropped}) != counts.dropped ({dropped})"
+            )
+
+    if freeze_path is not None:
+        errors.extend(
+            _check_freeze_record(
+                Path(freeze_path),
+                manifest_path=manifest_path,
+                labeled_sha=labeled_sha,
+                row_count=row_count,
+                base_dir=Path.cwd() if base_dir is None else Path(base_dir),
+            )
+        )
+    return errors
+
+
+def _check_freeze_record(
+    freeze_path: Path,
+    *,
+    manifest_path: Path,
+    labeled_sha: str | None,
+    row_count: int | None,
+    base_dir: Path,
+) -> list[str]:
+    """Re-prove a freeze record against the live bytes it pins."""
+    errors: list[str] = []
+    try:
+        freeze = json.loads(freeze_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        return [f"{freeze_path}: cannot parse freeze record ({e})"]
+    if freeze.get("schema_version") != FREEZE_RECORD_SCHEMA_VERSION:
+        errors.append(
+            f"{freeze_path}: schema_version must be "
+            f"{FREEZE_RECORD_SCHEMA_VERSION}, got {freeze.get('schema_version')!r}"
+        )
+    distill = freeze.get("distill", {})
+    frozen_labeled = distill.get("labeled", {})
+    if labeled_sha is not None and frozen_labeled.get("sha256") != labeled_sha:
+        errors.append(
+            f"{freeze_path}: frozen labeled sha256 "
+            f"{str(frozen_labeled.get('sha256'))[:12]}… != live "
+            f"{labeled_sha[:12]}… — the frozen training set drifted"
+        )
+    if row_count is not None and frozen_labeled.get("rows") != row_count:
+        errors.append(
+            f"{freeze_path}: frozen labeled rows {frozen_labeled.get('rows')!r} "
+            f"!= live {row_count}"
+        )
+    frozen_manifest_sha = distill.get("manifest_sha256")
+    if (
+        frozen_manifest_sha is not None
+        and manifest_path.is_file()
+        and frozen_manifest_sha != _sha256_file(manifest_path)
+    ):
+        errors.append(
+            f"{freeze_path}: frozen distill manifest sha256 != live "
+            f"{manifest_path} bytes — the manifest drifted from the freeze"
+        )
+    for entry in freeze.get("corpus", []):
+        for key, recorded_sha, label in (
+            ("file", entry.get("sha256"), "corpus file"),
+            ("manifest", entry.get("manifest_sha256"), "corpus manifest"),
+        ):
+            recorded_path = entry.get(key)
+            if not isinstance(recorded_path, str) or recorded_sha is None:
+                errors.append(f"{freeze_path}: corpus entry lacks {key!r} / sha")
+                continue
+            live = Path(recorded_path)
+            if not live.is_absolute():
+                live = base_dir / live
+            if not live.is_file():
+                errors.append(f"{freeze_path}: pinned {label} {recorded_path} missing")
+                continue
+            actual = _sha256_file(live)
+            if actual != recorded_sha:
+                errors.append(
+                    f"{freeze_path}: pinned {label} {recorded_path} sha256 "
+                    f"{actual[:12]}… != frozen {str(recorded_sha)[:12]}…"
+                )
+    return errors
+
+
+def build_freeze_record(
+    out_dir: Path,
+    *,
+    record_dir: str,
+    corpus_manifests: list[tuple[Path, str]],
+    repo_commit: str | None = None,
+    repo_dirty: bool | None = None,
+) -> dict:
+    """Assemble the stage-3 data-anchor freeze record (issue #20).
+
+    The output dir is validated first — freezing a broken artifact is
+    refused. The record pins: the labeled bytes + row count, the distill
+    manifest bytes, the corpus files (identities as recorded in the
+    distill manifest) AND their upstream manifests' live bytes (the whole
+    freeze chain), teacher + QC + counts copied from the distill
+    manifest, and the mix in both calibers (entry-level anchor vs
+    row-level outcome; docs/baselines/2026-09-26-distill-sizing-decision.md).
+
+    ``corpus_manifests`` pairs each upstream manifest's live path with the
+    repo-relative identity string the record carries (pinned invocations
+    supply these so the record never carries machine-specific paths).
+    """
+    out_dir = Path(out_dir)
+    errors = collect_distill_errors(out_dir)
+    if errors:
+        raise DistillError(
+            "refusing to freeze a broken distillation output: " + "; ".join(errors)
+        )
+    manifest = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+    counts = manifest["counts"]
+    by_load_type = counts["by_load_type"]
+    total_entries = sum(block["entries"] for block in by_load_type.values())
+    total_kept = counts["labeled_kept"]
+
+    def _pct(part: int, whole: int) -> float:
+        return round(100.0 * part / whole, 1) if whole else 0.0
+
+    corpus_files = manifest["corpus"]["files"]
+    if len(corpus_manifests) != len(corpus_files):
+        raise DistillError(
+            f"corpus_manifests needs one (path, recorded) pair per corpus file "
+            f"({len(corpus_files)}), got {len(corpus_manifests)}"
+        )
+    corpus = []
+    for f, (live_path, recorded) in zip(corpus_files, corpus_manifests):
+        corpus.append(
+            {
+                "file": f["file"],
+                "sha256": f["sha256"],
+                "entries": f["entries"],
+                "manifest": recorded,
+                "manifest_sha256": _sha256_file(live_path),
+            }
+        )
+    teacher = manifest["teacher"]
+    return {
+        "schema_version": FREEZE_RECORD_SCHEMA_VERSION,
+        "kind": "training-set-freeze",
+        "role": FREEZE_ROLE,
+        "generated_by": {
+            "tool": "trillic.distill",
+            "repo_commit": repo_commit,
+            "repo_dirty": repo_dirty,
+        },
+        "distill": {
+            "dir": record_dir,
+            "manifest_sha256": _sha256_file(out_dir / "manifest.json"),
+            "labeled": {
+                "file": f"{record_dir}/labeled.jsonl",
+                "sha256": _sha256_file(out_dir / "labeled.jsonl"),
+                "rows": total_kept,
+            },
+        },
+        "corpus": corpus,
+        "teacher": {
+            "model": teacher["model"],
+            "prompt_version": teacher["prompt_version"],
+            "prompt_sha256": teacher["prompt_sha256"],
+            "served_models": teacher["served_models"],
+        },
+        "quality_control": manifest["quality_control"],
+        "counts": counts,
+        "mix": {
+            "anchor": (
+                "docs/training-mix.md: rag 30% / system_prompt 35% / "
+                "dialogue 35% at ENTRY level (±5pt tolerance at sizing)"
+            ),
+            "entry_level_pct": {
+                lt: _pct(by_load_type[lt]["entries"], total_entries)
+                for lt in _LOAD_TYPES
+                if lt in by_load_type
+            },
+            "row_level_pct": {
+                lt: _pct(by_load_type[lt]["kept"], total_kept)
+                for lt in _LOAD_TYPES
+                if lt in by_load_type
+            },
+            "row_level_policy": _MIX_ROW_POLICY,
+        },
+        "exclusions": _FREEZE_EXCLUSIONS,
+    }

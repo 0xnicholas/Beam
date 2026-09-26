@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from trillic.cli import main
+from trillic.distill import build_freeze_record
 
 CORPUS_ROWS = [
     {
@@ -216,3 +217,55 @@ class TestRecordPaths:
         )
         assert code == 1
         assert "one identity per --corpus entry" in capsys.readouterr().err
+
+
+class TestDistillValidate:
+    def test_validate_ok(self, corpus_file, tmp_path, capsys):
+        assert main(build_args(corpus_file, tmp_path)) == 0
+        assert main(["distill", "validate", str(tmp_path / "out")]) == 0
+        assert "ok" in capsys.readouterr().out
+
+    def test_missing_dir(self, tmp_path, capsys):
+        assert main(["distill", "validate", str(tmp_path / "nope")]) == 1
+        assert "no such" in capsys.readouterr().err
+
+    def test_labeled_drift_fails(self, corpus_file, tmp_path, capsys):
+        assert main(build_args(corpus_file, tmp_path)) == 0
+        labeled = tmp_path / "out" / "labeled.jsonl"
+        rows = [
+            json.loads(line)
+            for line in labeled.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        rows[0]["tokens"][0][3] = 1 - rows[0]["tokens"][0][3]
+        labeled.write_text(
+            "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows),
+            encoding="utf-8",
+        )
+        assert main(["distill", "validate", str(tmp_path / "out")]) == 1
+        assert "sha256" in capsys.readouterr().err
+
+    def test_validate_with_freeze(self, corpus_file, tmp_path, capsys):
+        assert main(build_args(corpus_file, tmp_path)) == 0
+        out = tmp_path / "out"
+        upstream = tmp_path / "corpus-manifest.json"
+        upstream.write_text(
+            json.dumps({"corpus": {"sha256": "upstream"}}), encoding="utf-8"
+        )
+        record = build_freeze_record(
+            out,
+            record_dir=str(out),
+            corpus_manifests=[(upstream, str(upstream))],
+            repo_commit="deadbeef",
+            repo_dirty=False,
+        )
+        freeze = tmp_path / "freeze.json"
+        freeze.write_text(json.dumps(record), encoding="utf-8")
+        assert main(["distill", "validate", str(out), "--freeze", str(freeze)]) == 0
+        assert "freeze" in capsys.readouterr().out
+        # drift the labeled bytes: the freeze binding must fail
+        labeled = out / "labeled.jsonl"
+        labeled.write_text(
+            labeled.read_text(encoding="utf-8") + "\n", encoding="utf-8"
+        )
+        assert main(["distill", "validate", str(out), "--freeze", str(freeze)]) == 1
