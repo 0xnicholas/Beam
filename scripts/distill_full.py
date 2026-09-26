@@ -51,10 +51,16 @@ LEDGER_ROOT = REPO / "runs"
 TEACHER_MODEL = "deepseek/deepseek-v4-pro"
 GATEWAY_URL = "http://127.0.0.1:3005"
 # Pacing posture proven on the 2026-09-12 full149 runs and the #18 pilot:
-# >= 3s between call starts, 4 workers (headroom vs the ~35/min observed
-# trip point). At ~7023 fresh chunks this is a ~6h wall-clock run.
+# >= 3s between call starts (headroom vs the ~35/min observed trip point).
+# 2026-09-26 full-scale latency profile (measured on the first launch):
+# the teacher reasons ~6k tokens per call -> ~55s typical, with occasional
+# hung generations; timeout 240s + 3 transport retries absorb them, and
+# 12 workers keep throughput at the pace cap (~20 starts/min) anyway.
+# ETA ~10-11h for the ~6.9k fresh chunks; the crash journal absorbs kills.
 MIN_CALL_INTERVAL = 3.0
-CONCURRENCY = 4
+CONCURRENCY = 12
+TIMEOUT_SECONDS = 240.0
+MAX_RETRIES = 3
 
 MAX_CHUNK_TOKENS = 512
 WINDOW_SIZE = 150
@@ -131,6 +137,8 @@ def main() -> int:
     budgets = _full_chunk_budgets(counter)
     gateway = HttpGatewayClient(
         base_url=GATEWAY_URL,
+        timeout_seconds=TIMEOUT_SECONDS,
+        max_retries=MAX_RETRIES,
         min_call_interval=MIN_CALL_INTERVAL,
     )
     try:

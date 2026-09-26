@@ -75,7 +75,7 @@
 | 输入 token | 3,077,323(chunk 本体,实测)+ 模板 ~160/次 ≈ **4.2M** | cl100k_base 计费口径 |
 | 输出 token | 估 ~2.2M | pilot 实测 mean word_compressed_rate 0.7319 外推 |
 | 账本成本 | 探针 2e-6/103 tokens → 全量 ≈ **0.13 账本单位**(上限按 7257 次全费估 ≤0.2) | 网关 usage.cost 字段口径 |
-| 墙钟 | ≈5.8h(20 calls/min:3s pacing × 4 workers) | 低于 2026-09-12 实测 ~35/min 跳闸点,pilot 同 posture |
+| 墙钟 | ≈10–11h(2026-09-26 首跑实测:teacher 为推理型,每次调用 ~6k 推理 token ≈55s;3s pacing × 12 workers + 240s 超时 + 3 重试吸收偶发挂起) | 首跑 533s 内 banked 5 chunks 后死于一次 ReadTimeout,即为该实测的来源 |
 | 中断容忍 | kill/崩溃重跑只补未记录 chunk,零重复计费;瞬时重试双计容忍 +5% calls | journal 内容寻址(#18 已证) |
 
 超支处置:实际 calls 超 7257×1.05 或 served model 漂移 → 中止并回 issue
