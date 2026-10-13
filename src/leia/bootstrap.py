@@ -13,7 +13,7 @@ Calibers, pinned deliberately:
   runs reproduce bit-for-bit (the pinned literals in test_bootstrap.py
   exist to catch drift);
 - percentile bounds: the SAME linear-interpolation percentile as latency
-  p95 (trillic.quality.percentile — the old benchmark's caliber);
+  p95 (leia.quality.percentile — the old benchmark's caliber);
 - point estimate: the plain mean of the observed paired deltas (bootstrap
   distributions center on it; the report never quotes a resampled mean as
   the estimate).
@@ -22,7 +22,7 @@ Calibers, pinned deliberately:
 import random
 from dataclasses import dataclass
 
-from trillic.quality import percentile
+from leia.quality import percentile
 
 METHOD = "paired percentile bootstrap (resample prompts with replacement)"
 DEFAULT_CONFIDENCE = 0.95  # the 95% CI the acceptance criterion reads

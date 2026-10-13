@@ -7,7 +7,7 @@
 
 本包是产物包第五件:让宿主**照做即可接入**的单元,不是说明文档。
 
-本文件同时是**接入包草案**:`trillic delivery pack` 从被校验的 checkpoint
+本文件同时是**接入包草案**:`leia delivery pack` 从被校验的 checkpoint
 目录渲染定稿(占位符 → 真实值,单一来源,零手工填入)。
 
 ## 0. 本包对应产物(由 `delivery pack` 渲染)
@@ -17,7 +17,7 @@
 - checkpoint 目录内容摘要:`{{CHECKPOINT_DIGEST}}`
 - 随附 `SHA256SUMS` 清单哈希:`{{SHA256SUMS_SHA256}}`
 - checkpoint 文件数:{{CHECKPOINT_FILE_COUNT}}(逐文件哈希见随附 `SHA256SUMS`)
-- 渲染 harness:trillic {{HARNESS_VERSION}}
+- 渲染 harness:leia {{HARNESS_VERSION}}
 
 ## 1. drop-in 契约(产物校验清单)
 
@@ -36,11 +36,11 @@
 交付前在本仓跑一遍(离线、零网络,即本命令族的本体):
 
 ```bash
-uv run trillic delivery verify <checkpoint dir>          # 静态层(默认依赖)
-uv run trillic delivery verify <checkpoint dir> \
+uv run leia delivery verify <checkpoint dir>          # 静态层(默认依赖)
+uv run leia delivery verify <checkpoint dir> \
   --report verify.json                                   # + 机读报告落盘
 uv sync --group load                                     # 可选:加载层重依赖
-uv run trillic delivery verify <checkpoint dir>          # 含真实例化断言
+uv run leia delivery verify <checkpoint dir>          # 含真实例化断言
 ```
 
 静态层验架构类、标签语义与 tokenizer 资产;加载层(可选依赖组在场时)
@@ -89,7 +89,7 @@ huggingface-cli download <org>/{{MODEL_TAG}} --revision <sha> \
 
 ```diff
 -MODEL_ID = "microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank"
-+# Trillic v1 — local snapshot, sha256-verified (SHA256SUMS)
++# Leia v1 — local snapshot, sha256-verified (SHA256SUMS)
 +MODEL_ID = os.path.join(os.path.dirname(__file__), "models", "{{MODEL_TAG}}")
 ```
 
@@ -162,7 +162,7 @@ pub fn record_refine_tokens(direction: &str, model: &str, count: u64) {
 
 **待定实现项(唯一一个)**:`model` 标签从哪来——
 
-- (A) 宿主侧部署常量(如 env `REFINE_COMPRESSOR_MODEL=trillic-v1`):零 sidecar
+- (A) 宿主侧部署常量(如 env `REFINE_COMPRESSOR_MODEL=leia-v1`):零 sidecar
   改动,但与 `compressor.py` 的 `MODEL_ID` 两个来源,存在漂移风险;
 - (B) sidecar `RefineResponse` 加 `compressor_model` 字段(取自
   `Compressor.model_tag`,light mode 为 `"none"`):单一来源,改动 +1 处。
@@ -173,12 +173,12 @@ pub fn record_refine_tokens(direction: &str, model: &str, count: u64) {
 
 ## 4. 切换 runbook
 
-1. 落盘快照并跑 §2 的 sha256 校验(`trillic delivery verify <快照目录>`
+1. 落盘快照并跑 §2 的 sha256 校验(`leia delivery verify <快照目录>`
    同步跑契约校验);
 2. 打 §3 的 patch(4 处 + 3.4 的 A/B 选择);
 3. 冷启动 sidecar(uvicorn);
 4. `GET /health` → `{"status":"ok","compressor":true}`(false = light mode,停);
-5. stub 冒烟:本仓 `uv run trillic eval run --config eval/configs/fixture.toml`
+5. stub 冒烟:本仓 `uv run leia eval run --config eval/configs/fixture.toml`
    (零网络零花费);
 6. 真链路回归:本仓 pinned harness 跑冻结评测包全量(147 条 ≈ 600 次网关
    调用),走宿主网关的账本;
@@ -202,9 +202,9 @@ pub fn record_refine_tokens(direction: &str, model: &str, count: u64) {
 ## 6. 回归与再交付触发器
 
 回归纪律:stub 模式进宿主 CI(零成本);**影响压缩面/权重的改动**必须跑真链路
-全量(Trillic 侧执行,结果摘录入 `docs/baselines/`)。
+全量(Leia 侧执行,结果摘录入 `docs/baselines/`)。
 
-再交付(Trillic → refine)触发器,无触发不交付:
+再交付(Leia → refine)触发器,无触发不交付:
 
 1. 真链路回归跌破验收线;
 2. 负载分布漂移——操作化为 golden 主动扩集 + 线上聚合指标(节省率/
@@ -216,7 +216,7 @@ pub fn record_refine_tokens(direction: &str, model: &str, count: u64) {
 ## 7. 断供说明
 
 产物自包含:本地快照 + 旧模型并存,`from_pretrained(local_path)` 离线可跑。
-**Trillic 项目停止不影响 refine 运行与回滚**——这是"交付物供货"优于"代码
+**Leia 项目停止不影响 refine 运行与回滚**——这是"交付物供货"优于"代码
 依赖"的地方。
 
 ## 8. 待现场确认(本仓侦察无法确定)

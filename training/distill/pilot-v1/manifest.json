@@ -2,7 +2,7 @@
   "schema_version": 1,
   "method": "LLMLingua-2 distillation pipeline (arXiv:2403.12968): teacher compression of <=512-token chunks -> deterministic word-level labels via sliding-window fuzzy matching -> VR/AG quality control",
   "generated_by": {
-    "tool": "trillic.distill",
+    "tool": "leia.distill",
     "repo_commit": "0f52e4edffec733f1f3df157ec72d611929fde68",
     "repo_dirty": false
   },

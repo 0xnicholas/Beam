@@ -11,7 +11,7 @@ import json
 import httpx
 import pytest
 
-from trillic.clients.sidecar import (
+from leia.clients.sidecar import (
     HttpRefineClient,
     RefineError,
     RefineResult,

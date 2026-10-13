@@ -14,14 +14,14 @@ from pathlib import Path
 
 import pytest
 
-from trillic.corpus import (
+from leia.corpus import (
     CorpusError,
     build_training_entries,
     build_training_manifest,
     collect_corpus_errors,
 )
-from trillic.longbench import build_manifest, load_subset_rows
-from trillic.splits import row_fingerprint, split_half_rows
+from leia.longbench import build_manifest, load_subset_rows
+from leia.splits import row_fingerprint, split_half_rows
 
 
 def make_longbench_manifest(subsets_toml: Path, data_dir: Path) -> dict:

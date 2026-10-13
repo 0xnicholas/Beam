@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from trillic.distill import (
+from leia.distill import (
     DistillError,
     PROMPT_TEMPLATE,
     PROMPT_VERSION,
@@ -27,7 +27,7 @@ from trillic.distill import (
     quality_control,
     word_tokens,
 )
-from trillic.tokens import TokenCounter
+from leia.tokens import TokenCounter
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -310,8 +310,8 @@ class TestPromptPin:
 
 import os
 
-from trillic.clients.gateway import ChatResult, GatewayError
-from trillic.distill import (
+from leia.clients.gateway import ChatResult, GatewayError
+from leia.distill import (
     distill_ledger_id,
     load_chunk_results,
     load_corpus_rows,

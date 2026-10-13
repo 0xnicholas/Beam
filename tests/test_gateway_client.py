@@ -17,14 +17,14 @@ import json
 import httpx
 import pytest
 
-from trillic.clients.gateway import (
+from leia.clients.gateway import (
     GatewayError,
     HttpGatewayClient,
     StubGatewayClient,
     _RATE_LIMIT_MAX_WAIT,
     _RATE_LIMIT_RETRIES,
 )
-from trillic.judge import (
+from leia.judge import (
     JudgeError,
     judge_prompt,
     mechanical_judge_response,
@@ -246,7 +246,7 @@ class TestSustainedOverloadBackoff:
 
     def test_burst_of_overloads_then_success(self, monkeypatch):
         sleeps: list[float] = []
-        monkeypatch.setattr("trillic.clients.gateway.time.sleep", lambda s: sleeps.append(s))
+        monkeypatch.setattr("leia.clients.gateway.time.sleep", lambda s: sleeps.append(s))
         calls = {"n": 0}
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -265,7 +265,7 @@ class TestSustainedOverloadBackoff:
 
     def test_overload_ladder_is_increasing(self, monkeypatch):
         sleeps: list[float] = []
-        monkeypatch.setattr("trillic.clients.gateway.time.sleep", lambda s: sleeps.append(s))
+        monkeypatch.setattr("leia.clients.gateway.time.sleep", lambda s: sleeps.append(s))
 
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(503, json={"error": {"message": "overloaded"}})
@@ -288,7 +288,7 @@ class TestCallPacing:
 
     def test_sequential_calls_are_spaced(self, monkeypatch):
         sleeps: list[float] = []
-        monkeypatch.setattr("trillic.clients.gateway.time.sleep", lambda s: sleeps.append(s))
+        monkeypatch.setattr("leia.clients.gateway.time.sleep", lambda s: sleeps.append(s))
 
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(200, json=COMPLETION_RESPONSE)
@@ -300,7 +300,7 @@ class TestCallPacing:
 
     def test_no_pacing_by_default(self, monkeypatch):
         sleeps: list[float] = []
-        monkeypatch.setattr("trillic.clients.gateway.time.sleep", lambda s: sleeps.append(s))
+        monkeypatch.setattr("leia.clients.gateway.time.sleep", lambda s: sleeps.append(s))
 
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(200, json=COMPLETION_RESPONSE)

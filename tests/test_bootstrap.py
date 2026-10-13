@@ -11,7 +11,7 @@ import random
 
 import pytest
 
-from trillic.bootstrap import (
+from leia.bootstrap import (
     METHOD,
     BootstrapError,
     BootstrapResult,

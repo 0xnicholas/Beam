@@ -8,7 +8,7 @@ mean delta from zero. All pure functions.
 
 import pytest
 
-from trillic.sizing import (
+from leia.sizing import (
     effect_size,
     judge_score_variance,
     required_n,

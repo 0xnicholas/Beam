@@ -1,4 +1,4 @@
-"""`trillic delivery pack` — artifact pack assembly (issue #13).
+"""`leia delivery pack` — artifact pack assembly (issue #13).
 
 Black-box CLI tests over file contracts: the pack is gated on verify, the
 SHA256SUMS manifest matches `sha256sum -c` format against the checkpoint
@@ -17,9 +17,9 @@ from pathlib import Path
 import pytest
 from helpers import VALID_CHECKPOINT_CONFIG, make_checkpoint
 
-from trillic import __version__
-from trillic.cli import main
-from trillic.delivery import load_deps_available
+from leia import __version__
+from leia.cli import main
+from leia.delivery import load_deps_available
 
 pytestmark = pytest.mark.skipif(
     load_deps_available(),
@@ -80,7 +80,7 @@ class TestSuccessPath:
     def test_integration_pack_carries_real_values(self):
         text = (self.out / "integration-pack.md").read_text()
         assert VALID_CHECKPOINT_CONFIG["_name_or_path"] in text  # model identity
-        assert "trillic-v1" in text  # model tag (from _name_or_path basename)
+        assert "leia-v1" in text  # model tag (from _name_or_path basename)
         assert __version__ in text  # rendering harness
         sums_sha = sha256_file(self.out / "SHA256SUMS")
         assert sums_sha in text  # manifest hash

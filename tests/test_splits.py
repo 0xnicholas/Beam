@@ -9,7 +9,7 @@ same entry always lands on the same side — forever, and auditable.
 
 import pytest
 
-from trillic.splits import assign_splits, entry_fingerprint, split_half_rows
+from leia.splits import assign_splits, entry_fingerprint, split_half_rows
 
 
 def make_rows(n: int, prefix: str = "doc") -> list[dict]:

@@ -23,8 +23,8 @@ from pathlib import Path
 
 import pytest
 
-from trillic.golden import load_golden
-from trillic.dialogue import (
+from leia.golden import load_golden
+from leia.dialogue import (
     FACT_TYPES,
     DialogueError,
     build_dialogue_entries,

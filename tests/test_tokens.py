@@ -9,7 +9,7 @@ The pinned token counts below were verified by hand against cl100k_base.
 
 import pytest
 
-from trillic.tokens import TokenCounter, compression_ratio, kept_ratio
+from leia.tokens import TokenCounter, compression_ratio, kept_ratio
 
 
 def test_counter_pinned_hand_checked_counts():

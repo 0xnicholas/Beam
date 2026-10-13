@@ -16,23 +16,23 @@ Originals are level-independent: `prime_originals` answers and judges them
 exactly once per run, so a sweep pays for originals one time only.
 """
 
-from trillic.bootstrap import (
+from leia.bootstrap import (
     DEFAULT_CONFIDENCE,
     METHOD,
     paired_bootstrap_ci,
 )
-from trillic.clients.gateway import GatewayClient, GatewayError
-from trillic.golden import GoldenItem
-from trillic.judge import (
+from leia.clients.gateway import GatewayClient, GatewayError
+from leia.golden import GoldenItem
+from leia.judge import (
     JudgeError,
     judge_prompt,
     parse_judge_scores,
     rubric_sha256,
     score_of,
 )
-from trillic.quality import rounded_mean
-from trillic.resume import CallJournal, Replay
-from trillic.tasks import task_prompt, task_templates_sha256
+from leia.quality import rounded_mean
+from leia.resume import CallJournal, Replay
+from leia.tasks import task_prompt, task_templates_sha256
 
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -100,7 +100,7 @@ class TaskQualityLoop:
         self._lock = threading.Lock()
         # Interrupt-resume ledger (issue #8): when set, recorded gateway
         # results are replayed (never re-billed) under content-addressed
-        # conditions; see trillic.resume.
+        # conditions; see leia.resume.
         self._replay = replay
         self._journal = journal
         if replay is not None:

@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from trillic.report import ReportWriterError, render_report_md, write_run_dir
+from leia.report import ReportWriterError, render_report_md, write_run_dir
 
 
 def sample_metrics() -> dict:
@@ -12,7 +12,7 @@ def sample_metrics() -> dict:
         "schema_version": 3,
         "run_id": "20260830T120000000000Z-fixture-abcdef12",
         "created_at": "2026-08-30T12:00:00+00:00",
-        "harness": {"name": "trillic", "version": "0.1.0"},
+        "harness": {"name": "leia", "version": "0.1.0"},
         "config": {"raw": "name = \"x\"", "sha256": "0" * 64, "parsed": {"name": "x"}},
         "golden": {"sha256": "1" * 64, "item_count": 2},
         "sidecar": {"mode": "stub", "refine_model": "stub-refine", "aggressiveness": 0.2},

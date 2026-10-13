@@ -45,7 +45,7 @@ def main(argv: list[str]) -> int:
     except subprocess.SubprocessError:
         commit, dirty = None, None
 
-    from trillic.judge import RUBRIC_VERSION, rubric_sha256
+    from leia.judge import RUBRIC_VERSION, rubric_sha256
 
     record = {
         "schema_version": 1,

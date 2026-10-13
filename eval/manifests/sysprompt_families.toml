@@ -3,7 +3,7 @@
 # This file is the SEED-SPLIT AUTHORITY for system_prompt load-type data
 # (issue #4; docs/data-strategy.md 硬约束 4: 合成生成器共享代码,但场景族/
 # 种子分流). Production-style system prompts have no public dataset to draw
-# from: the family templates are handwritten in src/trillic/sysprompt.py and
+# from: the family templates are handwritten in src/leia/sysprompt.py and
 # entries are synthesized by seeded slot variation.
 #
 # Split discipline: every family owns two DISJOINT integer seed ranges.
@@ -20,7 +20,7 @@
 # stays distinct per family, and low-diversity families simply contribute
 # fewer entries. Eval seeds remain 101-110, untouched.
 #
-# `trillic golden manifest-sysprompt` merges this registry with the frozen
+# `leia golden manifest-sysprompt` merges this registry with the frozen
 # golden set into eval/manifests/sysprompt.json. Edit here, regenerate there.
 #
 # constraint_types vocabulary: "format" (output shape/length), "refusal"

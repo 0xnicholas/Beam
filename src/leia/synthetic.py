@@ -37,9 +37,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from trillic.corpus import collect_corpus_errors
-from trillic.dialogue import DialogueError, synthesize_training_entry as _dlg_train
-from trillic.sysprompt import (
+from leia.corpus import collect_corpus_errors
+from leia.dialogue import DialogueError, synthesize_training_entry as _dlg_train
+from leia.sysprompt import (
     SysPromptError,
     synthesize_training_entry as _sys_train,
 )
@@ -215,7 +215,7 @@ def write_synthetic_artifacts(
 ) -> dict:
     """Select, render, and write the synthetic corpus + manifest in one step.
 
-    Shared by `trillic corpus build-synthetic` and the pinned
+    Shared by `leia corpus build-synthetic` and the pinned
     scripts/build_synthetic_training.py so the CLI and the frozen
     invocation can never drift apart. record_file overrides the path
     string recorded in the manifest (repo-relative identity, not an
@@ -324,8 +324,8 @@ def build_synthetic_manifest(
     return {
         "schema_version": 1,
         "method": (
-            "shared scenario-family generators (src/trillic/sysprompt.py + "
-            "src/trillic/dialogue.py), train-seed side of the split: same "
+            "shared scenario-family generators (src/leia/sysprompt.py + "
+            "src/leia/dialogue.py), train-seed side of the split: same "
             "templates and seeded slot machinery as golden, train seeds only "
             "(硬约束 4: 场景族/种子分流 — both sides' guards raise on the "
             "other's seeds)"
@@ -336,7 +336,7 @@ def build_synthetic_manifest(
         "selection_rule": SELECTION_RULE,
         "targets": dict(targets),
         "generated_by": {
-            "tool": "trillic.synthetic",
+            "tool": "leia.synthetic",
             "repo_commit": repo_commit,
             "repo_dirty": repo_dirty,
         },
@@ -400,7 +400,7 @@ def collect_synthetic_errors(
     """Validate a synthetic training corpus; ALL errors, empty list = valid.
 
     Layers:
-      1. generic training-corpus checks via trillic.corpus (schema v1,
+      1. generic training-corpus checks via leia.corpus (schema v1,
          MeetingBank hard reject, split=='train', duplicate ids and content
          fingerprints, golden content overlap);
       2. synthetic registry layer: family known + train_use, seed re-proved

@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from trillic.cli import main
+from leia.cli import main
 
 REPO_ROOT = __import__("pathlib").Path(__file__).resolve().parents[1]
 FIXTURE_GOLDEN = REPO_ROOT / "eval" / "golden" / "fixture.jsonl"

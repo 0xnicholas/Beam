@@ -26,14 +26,14 @@ import subprocess
 import sys
 from pathlib import Path
 
-from trillic.clients.gateway import HttpGatewayClient
-from trillic.distill import (
+from leia.clients.gateway import HttpGatewayClient
+from leia.distill import (
     chunk_text,
     load_corpus_rows,
     run_distillation,
     select_entries,
 )
-from trillic.tokens import TokenCounter
+from leia.tokens import TokenCounter
 
 REPO = Path(__file__).resolve().parents[1]
 

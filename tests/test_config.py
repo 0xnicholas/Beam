@@ -2,7 +2,7 @@
 
 import pytest
 
-from trillic.config import ConfigError, RunConfig, load_config
+from leia.config import ConfigError, RunConfig, load_config
 
 
 def write_config(tmp_path, text):

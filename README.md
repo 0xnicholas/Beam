@@ -1,11 +1,15 @@
-# Trillic
+# Leia
 
 自训 prompt 压缩模型项目——为 tokencamp-pro 的 refine 子产品训练自有压缩 checkpoint。
+
+> 2026-10-13 由 **trillic** 更名 **leia**:包名(`src/leia`)、命令族
+> (`leia …`)、远程仓(`0xnicholas/leia`)同步;旧链接由 GitHub 重定向承接。
+> 更名范围与数据锚边界见 `docs/decisions.md` 定案 7。
 
 ## 定位
 
 tokencamp-pro 的 refine 压缩环节当前使用 Microsoft LLMLingua-2 公开 checkpoint
-(`bert-base-multilingual-cased-meetingbank`,2024)。Trillic 的目标是在公开
+(`bert-base-multilingual-cased-meetingbank`,2024)。Leia 的目标是在公开
 checkpoint 上领域微调出自有模型,在压缩质量、压缩率、query-aware 能力上超过它,
 实现核心能力的自主可控。
 
@@ -42,7 +46,7 @@ checkpoint 上领域微调出自有模型,在压缩质量、压缩率、query-aw
 ```bash
 uv sync                    # 安装依赖
 uv run pytest              # 全量测试(零网络:sidecar/网关用确定性假桩)
-uv run trillic eval run \
+uv run leia eval run \
   --config eval/configs/fixture.toml \
   --golden eval/golden/fixture.jsonl \
   --out runs               # 跑 fixture 迷你集(stub 模式,零网络零花费)
@@ -50,7 +54,7 @@ uv run trillic eval run \
 
 说明:
 
-- **评测骨架**(`trillic eval run`,issue #2):golden jsonl + TOML 配置进 →
+- **评测骨架**(`leia eval run`,issue #2):golden jsonl + TOML 配置进 →
   不可变 run 目录(`metrics.json` + `report.md`)出。
 - **指标全集 + 扫档**(issue #6):压缩率双口径(tiktoken 计费 + 模型原生
   token 计数器参数化:`word` / `wordpiece` / `sentencepiece` 三种 flavor,
@@ -68,7 +72,7 @@ uv run trillic eval run \
   钉死在 `[quality]` 配置段;bootstrap 为纯函数,种子化字面量单测钉死
   数值。stub 网关回显作答 + 机检打分,假桩下压缩只降分(方向性可验
   证);原文作答每 run 只算一次,扫档不加价。
-- **golden 工具族**(`trillic golden *`,issue #3):schema v2(含 load_type
+- **golden 工具族**(`leia golden *`,issue #3):schema v2(含 load_type
   与 source 溯源)校验、LongBench 切分/许可 manifest、种子化 RAG 起草。
   切分纪律:内容寻址半分(sha1 排序,前 ceil(n/2) 为 eval 半),golden
   只从 eval 半取样,同一条目永远不跨 split;MeetingBank 被校验器硬拒。
@@ -77,7 +81,7 @@ uv run trillic eval run \
   (见 `eval/manifests/longbench.json`);key_points 自数据集标注派生后
   人工修剪。
 - **system prompt pilot**(issue #4):生产风格系统提示无公开数据集可抄——
-  10 个手写场景族模板(`src/trillic/sysprompt.py`)+ 种子化槽位合成。
+  10 个手写场景族模板(`src/leia/sysprompt.py`)+ 种子化槽位合成。
   种子分流硬约束(data-strategy 硬约束 4):每族两个不相交整数种子池
   (eval 101–110 / train 901–910),golden 只用 eval 种子,训练侧共用
   生成器代码但永不交叉;分流权威在 `eval/manifests/sysprompt_families.toml`,
@@ -87,7 +91,7 @@ uv run trillic eval run \
   格式/拒绝/语气,激活用户消息内嵌于 prompt)。
 - **多轮对话 pilot**(issue #5):多轮对话历史无公开数据集可抄——旧仓
   `compression/eval/conversation_gen.py`(同作者)的 5 个场景族移植为
-  `src/trillic/dialogue.py` 并新增 5 族,共 10 族种子化槽位合成。结构 =
+  `src/leia/dialogue.py` 并新增 5 族,共 10 族种子化槽位合成。结构 =
   多轮 user/assistant 历史(`"role: content"` 行序列化,含代码块)+ 末轮
   用户消息(要求回忆历史事实);key_points 全部为历史事实型(名称/日期/
   先前决定),逐条以原文措辞引用历史(机检 ≥4 连续词重叠),压缩后可判
@@ -110,7 +114,7 @@ uv run trillic eval run \
   冻结含漂移拒);中断恢复在两次真实网关停摆下验证(36 fresh /
   84 reused)。RAG 缺口 1 条:短答案子集(qasper/hotpotqa)机械派生
   要点质量不足、富答案 eval 半已耗尽,补齐需人工修剪(后续票)。
-- **交付能力族**(`trillic delivery *` + `eval run --expect-golden-sha`,issues
+- **交付能力族**(`leia delivery *` + `eval run --expect-golden-sha`,issues
   #10–#14):`delivery verify` 按 drop-in 契约逐条校验候选 checkpoint 目录
   (架构类 / num_labels / id2label 0=drop、1=keep 语义 / fast tokenizer +
   offsets 可用),产出内容寻址机读 JSON 报告 + 人读 stdout,违规非零退出,
@@ -123,7 +127,7 @@ uv run trillic eval run \
   目录,同输入两次打包逐字节一致。`eval run --expect-golden-sha` 为
   冻结引用断言:宿主 pinned 调用时考卷漂移在任何网关调用之前失败,
   不产生 run 目录(与报告 golden.sha256 同源单一口径)。
-- **teacher 蒸馏管线**(`trillic distill run`,issue #18):语料 jsonl 进 →
+- **teacher 蒸馏管线**(`leia distill run`,issue #18):语料 jsonl 进 →
   带标签数据集 + 质控报告 + manifest 出。LLMLingua-2 方法复用
   (arXiv:2403.12968):语料分块(≤512 token,句界优先,无字丢失的字符
   切片)→ 网关 teacher 压缩(prompt 模板版本化 `llmlingua2-paper-v1`,
@@ -149,7 +153,7 @@ uv run trillic eval run \
   姿态);微调走专用 `.venv-train`(Python 3.12 + torch 2.2.2 /
   transformers 4.57.6,与宿主 sidecar 同钉 — macOS x86_64 最后一条
   torch 轮子线)。`scripts/train_pilot.py` 自动 bootstrap 并重入:
-  数据集字节先对照蒸馏 manifest 校验,`trillic train run` 产出
+  数据集字节先对照蒸馏 manifest 校验,`leia train run` 产出
   checkpoint + run-record + verify-report 三件套;种子/超参/数据
   sha256/基底 revision 全钉进 run record;产物必须过 delivery verify
   两层,否则命令失败(day-one drop-in);同 identity 重跑 = 原地
@@ -173,13 +177,13 @@ v1 锁定 mBERT-base 底座,验收对比基线 = 冻结基线。
   manifest/校验器与重建脚本 `scripts/build_synthetic_training.py`)
 - #18 teacher 蒸馏管线 walking skeleton:小规模 pilot(几百条,~10² 次
   网关调用)
-  ✅ 已落地:`trillic distill run` + `scripts/distill_pilot.py`,pilot
+  ✅ 已落地:`leia distill run` + `scripts/distill_pilot.py`,pilot
   115 条(三类齐备)→ 299 chunk,带标签数据集 255 条 + 质控报告 +
   manifest(teacher 型号 / prompt 版本与 sha256 / 匹配与过滤参数全钉死);
   断点恢复在真网关上实测(杀于 3 chunk 后重跑:296 fresh / 3 reused,
   零重复计费);真网关计费 299 次 ≈ 3×10²(内部账本可核)
 - #19 训练 plumbing:pilot 微调打通 + drop-in 契约(不做质量声称)
-  ✅ 已落地:`trillic train run` + `scripts/train_pilot.py`(自举专用
+  ✅ 已落地:`leia train run` + `scripts/train_pilot.py`(自举专用
   `.venv-train`:py3.12 + torch 2.2.2 / transformers 4.57.6,与宿主
   sidecar 同钉);pilot-v1(255 条)→ mBERT-base 微调 349 窗 / 132 步,
   checkpoint 过 delivery verify 双层(静态 + 加载:`.bert` 属性、fast
@@ -190,6 +194,12 @@ v1 锁定 mBERT-base 底座,验收对比基线 = 冻结基线。
   plumbing-only,不进对照报告(冒烟目录含 PLUMBING-ONLY.md)
 - #20 大规模蒸馏 + 训练集冻结 + 阶段 2 出口核销(定容决策后全量花费,
   阶段 3 开工门)
+  进行中:定容决策已归档——全集 1000 条 → 7257 次压缩调用(chunk 7322,
+  65 个 token-empty 跳过;其中 299 次 pilot 重放零费,新计费 ≤6958;
+  teacher 与 prompt 版本同 pilot 钉死,见
+  `docs/baselines/2026-09-26-distill-sizing-decision.md`);全量蒸馏工具面
+  与训练集冻结面已落地(含网关节流与并发/超时调参);`training/distill/full-v1/`
+  产物与 `training/manifests/training-set-v1.json` 冻结记录尚待生成
 
 花费纪律:零花费票先行,pilot 验证管线后才放全量(#20 同时被 #18/#19
 阻塞)。

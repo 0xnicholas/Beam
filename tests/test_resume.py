@@ -21,12 +21,12 @@ from pathlib import Path
 
 import pytest
 
-from trillic.clients.gateway import StubGatewayClient
-from trillic.golden import GoldenItem
-from trillic.judge import rubric_sha256
-from trillic.tasks import task_templates_sha256
-from trillic.resume import ResumeError, load_replay
-from trillic.task_quality import TaskQualityLoop
+from leia.clients.gateway import StubGatewayClient
+from leia.golden import GoldenItem
+from leia.judge import rubric_sha256
+from leia.tasks import task_templates_sha256
+from leia.resume import ResumeError, load_replay
+from leia.task_quality import TaskQualityLoop
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_RUN = None  # built per-test via the CLI helper below

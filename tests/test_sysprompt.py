@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from trillic.golden import load_golden
-from trillic.sysprompt import (
+from leia.golden import load_golden
+from leia.sysprompt import (
     CONSTRAINT_TYPES,
     SysPromptError,
     build_sysprompt_entries,

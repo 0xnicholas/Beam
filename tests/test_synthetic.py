@@ -20,20 +20,20 @@ from pathlib import Path
 
 import pytest
 
-from trillic.corpus import golden_fingerprints
-from trillic.dialogue import (
+from leia.corpus import golden_fingerprints
+from leia.dialogue import (
     DialogueError,
     load_families as load_dialogue_families,
     synthesize_entry as synthesize_dialogue_eval,
     synthesize_training_entry as synthesize_dialogue_train,
 )
-from trillic.sysprompt import (
+from leia.sysprompt import (
     SysPromptError,
     load_families as load_sysprompt_families,
     synthesize_entry as synthesize_sysprompt_eval,
     synthesize_training_entry as synthesize_sysprompt_train,
 )
-from trillic.synthetic import (
+from leia.synthetic import (
     SyntheticError,
     collect_synthetic_errors,
     select_train_seed_plan,

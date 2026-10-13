@@ -6,8 +6,8 @@ Tests (and offline runs) swap in deterministic in-process stubs; the HTTP
 implementations exist for real-link runs.
 """
 
-from trillic.clients.gateway import GatewayClient, HttpGatewayClient, StubGatewayClient
-from trillic.clients.sidecar import HttpRefineClient, RefineClient, RefineResult, StubRefineClient
+from leia.clients.gateway import GatewayClient, HttpGatewayClient, StubGatewayClient
+from leia.clients.sidecar import HttpRefineClient, RefineClient, RefineResult, StubRefineClient
 
 __all__ = [
     "GatewayClient",

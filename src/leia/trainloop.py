@@ -28,7 +28,7 @@ from transformers import (  # type: ignore[import-not-found]
     set_seed,
 )
 
-from trillic.train import (
+from leia.train import (
     ID2LABEL,
     LABEL2ID,
     TrainError,

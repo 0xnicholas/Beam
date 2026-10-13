@@ -1,7 +1,7 @@
 # LongBench subset registry — human-curated, committed.
 #
 # This file holds the LICENSE RESEARCH OUTPUT (issue #3: 逐子集训练使用许可
-# 检查). `trillic golden manifest` merges it with computed split counts into
+# 检查). `leia golden manifest` merges it with computed split counts into
 # eval/manifests/longbench.json. Edit here, regenerate there.
 #
 # train_use verdicts follow docs/data-strategy.md 硬约束 5: research-only /

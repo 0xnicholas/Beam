@@ -26,9 +26,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from trillic.clients.gateway import HttpGatewayClient
-from trillic.distill import run_distillation
-from trillic.tokens import TokenCounter
+from leia.clients.gateway import HttpGatewayClient
+from leia.distill import run_distillation
+from leia.tokens import TokenCounter
 
 REPO = Path(__file__).resolve().parents[1]
 

@@ -1,4 +1,4 @@
-"""trillic CLI.
+"""leia CLI.
 
 Subcommand families: `eval *` (runs + sizing), `golden *` (schema,
 manifests, pilot generators), `corpus *` (training layers), `delivery *`
@@ -14,22 +14,22 @@ import sys
 import time
 from pathlib import Path
 
-from trillic import __version__
-from trillic.clients.gateway import (
+from leia import __version__
+from leia.clients.gateway import (
     GatewayClient,
     GatewayError,
     HttpGatewayClient,
     StubGatewayClient,
 )
-from trillic.clients.sidecar import RefineError
-from trillic.config import ConfigError, load_config
-from trillic.corpus import (
+from leia.clients.sidecar import RefineError
+from leia.config import ConfigError, load_config
+from leia.corpus import (
     CorpusError,
     collect_corpus_errors,
     golden_fingerprints,
     write_training_artifacts,
 )
-from trillic.delivery import (
+from leia.delivery import (
     DeliveryError,
     pack_checkpoint,
     print_pack_summary,
@@ -39,36 +39,36 @@ from trillic.delivery import (
     verify_report_json,
     DEFAULT_DRAFT_PATH,
 )
-from trillic.dialogue import (
+from leia.dialogue import (
     DialogueError,
     build_dialogue_entries,
     build_dialogue_manifest,
     load_families as load_dialogue_families,
     make_review as make_dialogue_review,
 )
-from trillic.distill import DistillError, collect_distill_errors, run_distillation
-from trillic.golden import GoldenError, collect_golden_errors, load_golden
-from trillic.judge import JudgeError
-from trillic.longbench import LongBenchError, build_manifest, build_rag_entries
-from trillic.report import ReportWriterError
-from trillic.resume import ResumeError
-from trillic.runner import run_eval
-from trillic.sizing import sizing_report
-from trillic.tokens import TokenCounter
-from trillic.synthetic import (
+from leia.distill import DistillError, collect_distill_errors, run_distillation
+from leia.golden import GoldenError, collect_golden_errors, load_golden
+from leia.judge import JudgeError
+from leia.longbench import LongBenchError, build_manifest, build_rag_entries
+from leia.report import ReportWriterError
+from leia.resume import ResumeError
+from leia.runner import run_eval
+from leia.sizing import sizing_report
+from leia.tokens import TokenCounter
+from leia.synthetic import (
     SyntheticError,
     collect_synthetic_errors,
     write_synthetic_artifacts,
 )
-from trillic.sysprompt import (
+from leia.sysprompt import (
     SysPromptError,
     build_sysprompt_entries,
     build_sysprompt_manifest,
     load_families,
     make_review,
 )
-from trillic.task_quality import TaskQualityError
-from trillic.train import (
+from leia.task_quality import TaskQualityError
+from leia.train import (
     DEFAULT_BASE_MODEL,
     DEFAULT_BATCH_SIZE,
     DEFAULT_EPOCHS,
@@ -87,8 +87,8 @@ _ERROR_EXIT_CODE = 1
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="trillic",
-        description="Trillic evaluation harness (prompt-compression yardstick).",
+        prog="leia",
+        description="Leia evaluation harness (prompt-compression yardstick).",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     subparsers = parser.add_subparsers(dest="command", required=True)

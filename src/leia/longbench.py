@@ -20,8 +20,8 @@ import re
 import tomllib
 from pathlib import Path
 
-from trillic.splits import assign_splits, row_fingerprint, split_half_rows
-from trillic.tokens import TokenCounter
+from leia.splits import assign_splits, row_fingerprint, split_half_rows
+from leia.tokens import TokenCounter
 
 SPLIT_METHOD = (
     "sha1(context + NUL + input) sorted ascending; "

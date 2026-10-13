@@ -8,15 +8,15 @@ from pathlib import Path
 
 import pytest
 
-from trillic.golden import load_golden
-from trillic.longbench import (
+from leia.golden import load_golden
+from leia.longbench import (
     build_manifest,
     build_rag_entries,
     derive_key_points,
     load_subset_rows,
     render_prompt,
 )
-from trillic.splits import row_fingerprint, split_half_rows
+from leia.splits import row_fingerprint, split_half_rows
 
 
 class TestLoadSubsetRows:

@@ -53,9 +53,9 @@
   本仓 v2 接入面 spike 必须把"不破坏已缓存前缀"列为设计前提。
 - 来源:`docs/research/bear.md` §C.2、§D.3。
 
-### 6. 接入与供货决策(2026-09-11 grilling:Trillic → refine 的替换)
+### 6. 接入与供货决策(2026-09-11 grilling:Leia → refine 的替换)
 
-来源:2026-09-11 grilling 会话(问题:"Trillic 完成后,能替换 tokencamp 的
+来源:2026-09-11 grilling 会话(问题:"Leia 完成后,能替换 tokencamp 的
 refine 吗")。事实依据为宿主仓 `sidecars/refine/` 与 `crates/gateway/` 的
 侦察结论;可执行细节(drop-in 契约、patch 草案、切换 runbook)见
 `docs/delivery/refine-integration.md`。
@@ -100,7 +100,7 @@ Guardrail 直接调 `self.compressor.model.bert(**inputs)`)。mBERT-base 基底
 必然漂移);冻结评测包不物理复制进商业仓(同时解决 CC BY-NC 条目的用途解释
 与双份漂移),宿主以 pinned ref 调用,项目收尾时整体移交。回归纪律:stub
 模式进宿主 CI(零成本);影响压缩面/权重的改动必须跑真链路全量(≈600 次
-网关调用),由 Trillic 侧执行、走宿主网关账本,结果摘录入
+网关调用),由 Leia 侧执行、走宿主网关账本,结果摘录入
 `docs/baselines/`。
 
 **force-keep 保留** — 宿主 `_FACT_PATTERN` 强制保留不动;对照报告须标注它对
@@ -122,7 +122,18 @@ research artifact。
 
 **许可** — hotpotqa(CC BY-SA 4.0)可进训练集,model card 如实声明衍生关系;
 权重不进公开仓(SaaS-only,不分发)。断供性质:产物自包含(本地快照 + 旧模型
-并存),Trillic 停止不影响 refine 运行与回滚。
+并存),Leia 停止不影响 refine 运行与回滚。
+
+### 7. 项目更名为 leia(2026-10-13)
+
+- **范围**:项目名、Python 包(`src/leia`)、命令族(`leia …`)、远程仓
+  (`0xnicholas/leia`,原名 `0xnicholas/trillic`;GitHub 保留旧路径重定向,
+  本地 remote URL 已同步)。纯命名变更,不含功能与数据变更。
+- **数据锚不动**:`training/`、`eval/` 冻结产物记录的内容 sha256 保持原值
+  (仍是冻结点);manifest 的 `repo_commit` 保持改名前的提交,而
+  `generated_by.tool` 与正文路径随代码更名——两者的时间线差异即本条目。
+- **历史运行记录保留旧名**:`runs/` 与 `docs/baselines/` 的既有报告记录的
+  是当时那次运行的 harness 身份,不改写。
 
 ## 排除项汇总
 

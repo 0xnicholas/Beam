@@ -10,11 +10,11 @@ coverage drops).
 
 import pytest
 
-from trillic.clients.gateway import GatewayError, StubGatewayClient
-from trillic.clients.sidecar import StubRefineClient
-from trillic.golden import GoldenItem
-from trillic.judge import split_judge_prompt
-from trillic.task_quality import TaskQualityLoop
+from leia.clients.gateway import GatewayError, StubGatewayClient
+from leia.clients.sidecar import StubRefineClient
+from leia.golden import GoldenItem
+from leia.judge import split_judge_prompt
+from leia.task_quality import TaskQualityLoop
 
 SOURCE = {
     "dataset": "synthetic",
@@ -310,7 +310,7 @@ class TestJudgeMalformedReplyRetry:
         )]
         gateway = FlakyJudgeGateway(bad_replies=99)
         loop = self._loop(gateway)
-        from trillic.judge import JudgeError
+        from leia.judge import JudgeError
 
         with pytest.raises(JudgeError, match="rag-1"):
             loop.prime_originals(items, golden_sha256="sha")
@@ -345,7 +345,7 @@ class TestItemConcurrency:
         )
 
     def test_journal_records_all_items_under_concurrency(self, tmp_path):
-        from trillic.resume import CallJournal
+        from leia.resume import CallJournal
         import json as _json
 
         journal = CallJournal(tmp_path / "ledger.jsonl")
@@ -416,7 +416,7 @@ class TestJudgeContentFilterRetry:
         assert loop.call_stats()["answers_fresh"] == 2  # re-answered once
 
     def test_persistent_filter_raises_with_item_id(self):
-        from trillic.task_quality import TaskQualityError
+        from leia.task_quality import TaskQualityError
 
         items = [GoldenItem(
             id="rag-nuke", load_type="rag", prompt="context about WMD reports",

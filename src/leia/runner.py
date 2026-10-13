@@ -4,7 +4,7 @@ Scope (issues #2 + #6 + #7): compress every golden item through the
 (injectable) refine-sidecar client at every configured sweep level, measure
 compression in both token calibers (tiktoken billing + parameterized
 model-native), fact recall and token-alignment F0.5 (calibers shared with
-the runtime guardrail — see trillic.quality), per-item refine latency with
+the runtime guardrail — see leia.quality), per-item refine latency with
 p50/p95 per level, and — since issue #7 — task-level quality: each load
 type's downstream task is answered through the gateway for BOTH the
 original and the compressed prompt, an LLM judge grades both answers
@@ -19,30 +19,30 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from trillic import __version__
-from trillic.bootstrap import DEFAULT_CONFIDENCE, METHOD
-from trillic.clients.gateway import GatewayClient, HttpGatewayClient, StubGatewayClient
-from trillic.clients.sidecar import (
+from leia import __version__
+from leia.bootstrap import DEFAULT_CONFIDENCE, METHOD
+from leia.clients.gateway import GatewayClient, HttpGatewayClient, StubGatewayClient
+from leia.clients.sidecar import (
     HttpRefineClient,
     RefineClient,
     RefineResult,
     StubRefineClient,
 )
-from trillic.config import RunConfig
-from trillic.golden import GoldenError, GoldenItem, load_golden_set
-from trillic.judge import RUBRIC_VERSION, rubric_sha256
-from trillic.native_tokens import NativeCounter, build_native_counter
-from trillic.quality import fact_recall, percentile, rounded_mean, text_token_f05
-from trillic.report import render_report_md, write_run_dir
-from trillic.resume import (
+from leia.config import RunConfig
+from leia.golden import GoldenError, GoldenItem, load_golden_set
+from leia.judge import RUBRIC_VERSION, rubric_sha256
+from leia.native_tokens import NativeCounter, build_native_counter
+from leia.quality import fact_recall, percentile, rounded_mean, text_token_f05
+from leia.report import render_report_md, write_run_dir
+from leia.resume import (
     CallJournal,
     Replay,
     ledger_id,
     load_replay_from_run_dir,
 )
-from trillic.task_quality import TaskQualityError, TaskQualityLoop
-from trillic.tasks import task_templates_sha256
-from trillic.tokens import TokenCounter, compression_ratio, kept_ratio
+from leia.task_quality import TaskQualityError, TaskQualityLoop
+from leia.tasks import task_templates_sha256
+from leia.tokens import TokenCounter, compression_ratio, kept_ratio
 
 METRICS_SCHEMA_VERSION = 3
 
@@ -381,7 +381,7 @@ def _build_metrics(
         # rides at the top level so no reader can miss it
         **({"claim": config.claim} if config.claim else {}),
         "harness": {
-            "name": "trillic",
+            "name": "leia",
             "version": __version__,
             "python": sys.version.split()[0],
             "tiktoken": _tiktoken_version(),

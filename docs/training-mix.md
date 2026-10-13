@@ -88,7 +88,7 @@
 - **零网关调用纪律**:本层产出(合成、manifest、校验)全部为本地
   确定性模板渲染;teacher 蒸馏的花费全部发生在后续蒸馏 issue,进
   网关账本。重建入口:`scripts/build_synthetic_training.py`(等价于
-  `trillic corpus build-synthetic` + 全量校验)。
+  `leia corpus build-synthetic` + 全量校验)。
 
 ## 许可与排除速览
 

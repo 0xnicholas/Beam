@@ -21,7 +21,7 @@ from typing import Any, Protocol
 
 import httpx
 
-from trillic.judge import (
+from leia.judge import (
     mechanical_judge_response,
     split_judge_prompt,
 )
@@ -185,7 +185,7 @@ class StubGatewayClient:
 
     Two behaviors (issue #7):
     - prompts on the judge protocol (TRILLIC-JUDGE envelope) are graded
-      mechanically via trillic.judge — the reply is real judge-protocol
+      mechanically via leia.judge — the reply is real judge-protocol
       JSON, so the whole task-quality loop runs end-to-end on stubs;
     - every other prompt is echoed back prefixed with the model name
       (the deterministic "answering" behavior).

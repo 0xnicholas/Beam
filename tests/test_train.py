@@ -4,7 +4,7 @@ Under test: labeled-dataset consumption (issue #18's pilot output),
 subword label alignment through fast-tokenizer offsets, window packing,
 the pinned run record (seed / hyperparameters / data sha256), and the
 versioned-output identity guard. Everything here runs on default
-dependencies only — the torch fine-tune loop lives in trillic.trainloop
+dependencies only — the torch fine-tune loop lives in leia.trainloop
 (env-gated tests in test_trainloop.py).
 """
 
@@ -21,7 +21,7 @@ from helpers import (
     training_word as word,
     write_training_dataset as write_dataset,
 )
-from trillic.train import (
+from leia.train import (
     DEFAULT_MAX_SEQ_LEN,
     PLUMBING_ONLY_CLAIM,
     TrainError,
@@ -405,7 +405,7 @@ class TestRunTrainingOrchestration:
             tokenizer=char_wordpiece_tokenizer(),
         )
         kwargs.update(over)
-        from trillic.train import run_training
+        from leia.train import run_training
         return run_training(**kwargs)
 
     def test_end_to_end_record_and_reports(self, tmp_path, fake_loop):
@@ -426,7 +426,7 @@ class TestRunTrainingOrchestration:
         assert fake_loop.calls[0]["checkpoint_dir"] == out / "checkpoint"
 
     def test_verify_violation_refuses_and_keeps_evidence(self, tmp_path, fake_loop):
-        from trillic.train import run_training
+        from leia.train import run_training
         dataset = write_dataset(tmp_path, [row("a#c0", SIMPLE, SIMPLE_TOKENS)])
         with pytest.raises(TrainError, match="delivery verify"):
             self.run(tmp_path, fake_loop, verify_fn=self.fake_verify("violation"))

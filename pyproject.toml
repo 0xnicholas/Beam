@@ -1,5 +1,5 @@
 [project]
-name = "trillic"
+name = "leia"
 version = "0.1.0"
 description = "Self-trained prompt-compression model for tokencamp-pro's refine pipeline; evaluation harness and training assets."
 authors = [
@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-trillic = "trillic.cli:main"
+leia = "leia.cli:main"
 
 [dependency-groups]
 dev = [

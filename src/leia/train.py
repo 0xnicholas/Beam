@@ -9,7 +9,7 @@ Two layers, mirroring the delivery capability's split:
   record (seed / hyperparameters / data sha256 / base revision — same
   inputs, same record bytes), and the versioned-output identity guard
   (same identity reruns overwrite in place, drift picks a new directory).
-- `trillic.trainloop` (optional train environment): the torch/
+- `leia.trainloop` (optional train environment): the torch/
   transformers fine-tune itself plus checkpoint save. Absent there, the
   CLI refuses with the bootstrap hint before doing any work.
 
@@ -29,8 +29,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from trillic import __version__
-from trillic.delivery import VERIFY_REPORT_NAME, verify_report_json
+from leia import __version__
+from leia.delivery import VERIFY_REPORT_NAME, verify_report_json
 
 TRAIN_RECORD_SCHEMA_VERSION = 1
 
@@ -373,7 +373,7 @@ def build_run_record(
         "schema_version": TRAIN_RECORD_SCHEMA_VERSION,
         "claim": PLUMBING_ONLY_CLAIM,
         "generated_by": {
-            "tool": "trillic.train",
+            "tool": "leia.train",
             "version": __version__,
             "repo_commit": repo_commit,
             "repo_dirty": repo_dirty,
@@ -533,8 +533,8 @@ def run_training(
     passes delivery verify (static + load) -> pinned run record.
 
     ``loop``/``verify_fn``/``tokenizer`` are injection seams for the
-    torchless test suite; the real path lazily uses ``trillic.trainloop``
-    (train environment) and ``trillic.delivery``.
+    torchless test suite; the real path lazily uses ``leia.trainloop``
+    (train environment) and ``leia.delivery``.
     """
     _validate_hyperparams(
         seed=seed, epochs=epochs, batch_size=batch_size,
@@ -548,7 +548,7 @@ def run_training(
     own_loop = loop is None
     if own_loop:
         require_train_env()
-        from trillic.trainloop import fine_tune, load_tokenizer, resolve_revision
+        from leia.trainloop import fine_tune, load_tokenizer, resolve_revision
 
         loop = fine_tune
         if base_revision is None:
@@ -593,7 +593,7 @@ def run_training(
     )
 
     if verify_fn is None:
-        from trillic.delivery import verify_checkpoint as default_verify
+        from leia.delivery import verify_checkpoint as default_verify
 
         verify_fn = default_verify  # load layer included: we are in the train env
     verify_report = verify_fn(checkpoint_dir)
@@ -607,7 +607,7 @@ def run_training(
             "the training line refuses to emit a non-drop-in artifact"
         )
 
-    from trillic.delivery import checkpoint_digest, scan_checkpoint_files
+    from leia.delivery import checkpoint_digest, scan_checkpoint_files
 
     files = scan_checkpoint_files(checkpoint_dir)
     library = dict(loop_record.get("library", {}))

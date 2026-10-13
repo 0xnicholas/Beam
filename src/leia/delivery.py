@@ -36,7 +36,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from trillic import __version__
+from leia import __version__
 
 DELIVERY_REPORT_SCHEMA_VERSION = 1
 
@@ -345,7 +345,7 @@ def verify_checkpoint(directory: Path, *, include_load: bool = True) -> dict[str
     return {
         "schema_version": DELIVERY_REPORT_SCHEMA_VERSION,
         "harness": {
-            "name": "trillic",
+            "name": "leia",
             "version": __version__,
             "python": sys.version.split()[0],
         },
@@ -428,7 +428,7 @@ def model_identity(directory: Path, config: dict[str, Any]) -> tuple[str, str]:
 
     model_id: config.json ``_name_or_path`` when present, else the
     directory name. model_tag: the basename (snapshot dir / metric
-    label form, e.g. "trillic-v1").
+    label form, e.g. "leia-v1").
     """
     name_or_path = config.get("_name_or_path")
     model_id = str(name_or_path) if name_or_path else Path(directory).name
@@ -487,7 +487,7 @@ def pack_checkpoint(
         raise DeliveryError(
             "refusing to pack: drop-in contract violations — "
             f"{verify_error_message(report).split(': ', 1)[-1]} "
-            f"(run `trillic delivery verify {directory}` for the full report)"
+            f"(run `leia delivery verify {directory}` for the full report)"
         )
     if out_dir.exists():
         raise DeliveryError(

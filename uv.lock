@@ -387,6 +387,39 @@ wheels = [
 ]
 
 [[package]]
+name = "leia"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "httpx" },
+    { name = "tiktoken" },
+    { name = "tokenizers" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+load = [
+    { name = "torch" },
+    { name = "transformers" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "tiktoken", specifier = ">=0.8" },
+    { name = "tokenizers", specifier = ">=0.20" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=8.0" }]
+load = [
+    { name = "torch", specifier = ">=2.2" },
+    { name = "transformers", specifier = ">=4.44" },
+]
+
+[[package]]
 name = "markdown-it-py"
 version = "4.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1122,39 +1155,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/0e/9e/750649904a065007a838981785b2bd8d9ff26154c6c341ac67d0b7f82c68/transformers-5.17.0.tar.gz", hash = "sha256:a153be279169b55b92d8000bf4af294aed684503d091cca7804da2dd8a9de000", size = 9817878, upload-time = "2026-09-09T15:39:56.886Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e8/d0/c502b60d684adbd98a8dc7d5bb866842772b816ac4354e4608be240041ae/transformers-5.17.0-py3-none-any.whl", hash = "sha256:78ec1ce21579b38dfb83950a0658cd119f87212a2fcfdff478096ce9d6c03801", size = 12295140, upload-time = "2026-09-09T15:39:53.746Z" },
-]
-
-[[package]]
-name = "trillic"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "httpx" },
-    { name = "tiktoken" },
-    { name = "tokenizers" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-]
-load = [
-    { name = "torch" },
-    { name = "transformers" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "httpx", specifier = ">=0.27" },
-    { name = "tiktoken", specifier = ">=0.8" },
-    { name = "tokenizers", specifier = ">=0.20" },
-]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=8.0" }]
-load = [
-    { name = "torch", specifier = ">=2.2" },
-    { name = "transformers", specifier = ">=4.44" },
 ]
 
 [[package]]

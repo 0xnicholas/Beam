@@ -2,7 +2,7 @@
   "schema_version": 1,
   "split_method": "sha1(context + NUL + input) sorted ascending; first ceil(n/2) -> eval half, remainder -> train half",
   "generated_by": {
-    "tool": "trillic.corpus",
+    "tool": "leia.corpus",
     "repo_commit": "aa5dcb1fb61f5c5bf8277b0523d98277e88dd135",
     "repo_dirty": false
   },
@@ -85,6 +85,6 @@
   },
   "split_discipline": {
     "train_half": "every entry asserts split=='train' and is re-proved offline: content_sha1 >= train_boundary_fingerprint",
-    "golden_zero_overlap": "content_sha1 intersection with golden asserted empty by `trillic corpus validate --golden`"
+    "golden_zero_overlap": "content_sha1 intersection with golden asserted empty by `leia corpus validate --golden`"
   }
 }

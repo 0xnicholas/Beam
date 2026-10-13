@@ -17,7 +17,7 @@ against runtime thresholds on the same algebra:
 
 import pytest
 
-from trillic.quality import (
+from leia.quality import (
     FACT_PATTERN,
     extract_facts,
     fact_recall,

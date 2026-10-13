@@ -21,7 +21,7 @@ fallback 全部复用。参考实现:旧项目 `compression/eval/`(见 reference
   `eval/corpus/SOURCES.md` 的先例)及其他开放文档集;
 - **合成语料补配比**:LLM 生成"典型网关负载"。旧仓
   `eval/conversation_gen.py` 的种子对话生成器是现成起点(已移植为
-  `src/trillic/dialogue.py`,5 族移植 + 5 族新写,见 issue #5)。
+  `src/leia/dialogue.py`,5 族移植 + 5 族新写,见 issue #5)。
 
 ## 配比:对齐网关真实负载
 

@@ -1,4 +1,4 @@
-"""Main seam: `trillic eval run` as a black box.
+"""Main seam: `leia eval run` as a black box.
 
 CLI in (config + golden), files out (run directory). The sidecar runs in
 stub mode, so the whole flow is deterministic and zero-network. Expected
@@ -14,10 +14,10 @@ import json
 import pytest
 import tiktoken
 
-from trillic import __version__
-from trillic.cli import main
-from trillic.judge import rubric_sha256
-from trillic.tasks import TASK_INSTRUCTIONS
+from leia import __version__
+from leia.cli import main
+from leia.judge import rubric_sha256
+from leia.tasks import TASK_INSTRUCTIONS
 
 ENCODING = tiktoken.get_encoding("cl100k_base")
 
@@ -102,7 +102,7 @@ class TestEvalRunHappyPath:
         assert "fixture" in self.run_dir.name
 
     def test_metrics_pin_harness_version(self):
-        assert self.metrics["harness"]["name"] == "trillic"
+        assert self.metrics["harness"]["name"] == "leia"
         assert self.metrics["harness"]["version"] == __version__
 
     def test_metrics_embed_config_snapshot(self, fixture_config_path):
@@ -190,7 +190,7 @@ class TestEvalRunHappyPath:
         """fact recall + token F0.5 on every item, consistent with the
         pure functions (stub compression drops words, so recall < 1 is
         expected on fact-bearing prompts)."""
-        from trillic.quality import fact_recall, text_token_f05
+        from leia.quality import fact_recall, text_token_f05
 
         for item, row in zip(self.level["items"], self.golden_rows):
             assert item["fact_recall"] == round(
@@ -250,10 +250,10 @@ class TestEvalRunHappyPath:
         """Hand-check wiring: recompute original/compressed scores, deltas,
         means, and the CI straight from the stubs, compare against
         metrics.json — the E2E numbers are pinned, not just structural."""
-        from trillic.bootstrap import paired_bootstrap_ci
-        from trillic.clients.gateway import StubGatewayClient as StubGW
-        from trillic.judge import mechanical_coverage_score, score_of
-        from trillic.tasks import task_prompt
+        from leia.bootstrap import paired_bootstrap_ci
+        from leia.clients.gateway import StubGatewayClient as StubGW
+        from leia.judge import mechanical_coverage_score, score_of
+        from leia.tasks import task_prompt
 
         stub_gw = StubGW()
 

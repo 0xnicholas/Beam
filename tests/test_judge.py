@@ -11,7 +11,7 @@ import json
 
 import pytest
 
-from trillic.judge import (
+from leia.judge import (
     ANSWER_FENCE_END,
     ANSWER_FENCE_START,
     JUDGE_PROMPT_MARKER,
