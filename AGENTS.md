@@ -5,7 +5,8 @@ Leia — 自训 prompt 压缩模型项目(为 tokencamp-pro 的 refine 供货)�
 ## 语言与风格
 
 - 代码、标识符、代码注释、commit message:English。
-- 文档:中文。
+- 文档:中文;README 例外——默认英文(`README.md`),中文镜像
+  `README.zh-CN.md`,两版同源,内容改动需同步。
 - Commit:约定式提交(`feat:` / `fix:` / `docs:` / `chore:` …)。
 
 ## 必读
