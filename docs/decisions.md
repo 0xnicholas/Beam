@@ -77,7 +77,7 @@ Guardrail 直接调 `self.compressor.model.bert(**inputs)`)。mBERT-base 基底
 天然满足;XLM-R-large 不满足(属性为 `.roberta`)——后手牌激活判据据此
 修订(见 roadmap 阶段 1)。
 
-**宿主改造集(全部四处)**
+**宿主改造集(全部四处;2026-10-14 修订见本小节末)**
 
 1. `sidecars/refine/compressor.py:11` 的 `MODEL_ID` → 本地快照路径;
 2. `refine_cache.py:make_cache_key` 加入压缩模型身份——现状只含
@@ -89,6 +89,26 @@ Guardrail 直接调 `self.compressor.model.bert(**inputs)`)。mBERT-base 基底
 4. `crates/gateway/src/metrics.rs` + `pipeline/transform.rs` 记录 token 节省
    指标(`model` 标签 = 压缩模型版本,新旧可比;标签来源在接入包里为待定
    实现项)。
+
+**2026-10-14 修订(宿主现状复核,HEAD `6b03be5`,工作树干净)**:
+
+- 上述四处中**三处已由宿主自行落地**,不再需要本项目提改造请求:第 2 处
+  (`refine_cache.py:12-22` 的第九个参数即压缩机标签);第 4 处
+  (`record_refine_tokens`,`metrics.rs:112-121`——注意标签名是 `compressor`
+  而非 `model`,宿主 CONTEXT.md 把裸 `model` 保留给 catalog 模型);第 3 处的
+  字段面(`RefineResult` 带 `original_tokens`/`refined_tokens`/
+  `compressor_model`,`refine.rs:200-216`)。原 3.4 的 (A)/(B) 待定项按
+  **(B)** 落地。
+- **未动的第 1 处仍是切换本身。**宿主已加 `COMPRESSION_MODEL_ID` 环境变量缝
+  (`compressor.py:16`),但其代码注释写明"只为 leia 的评测基线而存在、在任何
+  部署里都不设"。因此下方的"不做 env 覆盖"排除项**不被推翻**——部署切换依旧
+  落在 `MODEL_ID` 的默认值指向本地快照那一行,版本单一来源、可审计。
+- **行号漂移**(2026-09-11 侦察 → 2026-10-14 现值):`.bert` 调用
+  `refiner.py:263` → **338**;`make_cache_key` 调用点 `151-154` → **182-185**;
+  `server.py` light mode `22-36` → **22-31**;冻结考卷 **149** 条(交付文档
+  原写 147)。`docs/delivery/refine-integration.md` 已按现值同步。
+- 交付尚未发生:`sidecars/refine/models/` 现为 HF hub cache(mBERT +
+  XLM-R-large 两个 snapshot),无本地快照目录、无 `SHA256SUMS`。
 
 **不做**:模型版本走环境变量覆盖(版本应单一来源、可审计;回滚用 git revert
 足够)、影子双跑、按工作区分批切换。

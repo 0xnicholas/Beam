@@ -1,14 +1,22 @@
 # refine 接入包(骨架草案)
 
-状态:**草案**(2026-09-11 建立于 grilling 会话);阶段 5 交付前冻结为 v1 定稿。
+状态:**草案**(2026-09-11 建立于 grilling 会话;2026-10-14 复核宿主现状、同步
+行号并重写 §3);阶段 5 交付前冻结为 v1 定稿。
 对象:tokencamp-pro 的 refine sidecar(`sidecars/refine/`)与网关 transform 阶段。
-事实基线:2026-09-11 对宿主仓的侦察(下文行号以该次侦察为准)。
-决策依据:`docs/decisions.md` §6;阶段结构见 `docs/roadmap.md` 阶段 5。
+事实基线:2026-10-14 对宿主仓 HEAD `6b03be5` 的复核(下文行号以此为准;
+2026-09-11 侦察的旧行号在漂移处括注)。
+决策依据:`docs/decisions.md` §6(含 2026-10-14 修订);阶段结构见
+`docs/roadmap.md` 阶段 5。
 
 本包是产物包第五件:让宿主**照做即可接入**的单元,不是说明文档。
 
 本文件同时是**接入包草案**:`leia delivery pack` 从被校验的 checkpoint
 目录渲染定稿(占位符 → 真实值,单一来源,零手工填入)。
+
+> **复核结论(2026-10-14)**:原列"宿主改造集四处"中,**三处已由宿主自行落地**
+> (缓存键含压缩机身份、token 节省指标、`COMPRESSION_MODEL_ID` 评测缝;提交
+> `dd2dd06` / `427140a` / `e39126b` / `b338758`)。切换时**只剩一处需要动手**:
+> 把 `compressor.py` 的 `MODEL_ID` 默认值指向本地产物。§3 已按此重写。
 
 ## 0. 本包对应产物(由 `delivery pack` 渲染)
 
@@ -19,6 +27,15 @@
 - checkpoint 文件数:{{CHECKPOINT_FILE_COUNT}}(逐文件哈希见随附 `SHA256SUMS`)
 - 渲染 harness:leia {{HARNESS_VERSION}}
 
+> **打包前必看:标签从哪来。**`{{MODEL_ID}}` 取 `config.json` 的
+> `_name_or_path`,该字段缺失时退回**目录名**;`{{MODEL_TAG}}` 再取它的
+> basename——也就是说,**暂存目录名会被直接写进 patch 与指标标签**。目录叫
+> `checkpoint`,渲染出来的注入路径就是 `models/checkpoint`(错),宿主的
+> `compressor` 标签也不可读。交付前把暂存目录命名为 `leia-v1`(或在导出时
+> 写入 `_name_or_path`),再跑 `delivery pack`。2026-10-14 实测:
+> `runs/train/pilot-v1/checkpoint` 正是缺该字段的情形,渲染出的标签是
+> `checkpoint`。
+
 ## 1. drop-in 契约(产物校验清单)
 
 一次切换是否可行,先看这份清单——任何一条不满足,都要求宿主改 `refiner.py`,
@@ -28,8 +45,8 @@
       `num_labels == 2`,`id2label` = {0: drop, 1: keep};
 - [ ] tokenizer 为 **fast**(`return_offsets_mapping=True` 必须可用——
       force-keep 靠 offsets 定位);
-- [ ] 模型类暴露 **`.bert`** 属性(`refiner.py:263` 的相似度 Guardrail 直接调
-      `self.compressor.model.bert(**inputs)`);
+- [ ] 模型类暴露 **`.bert`** 属性(`refiner.py:338` 的相似度 Guardrail 直接调
+      `self.compressor.model.bert(**inputs)`;2026-09-11 侦察时为 263);
 - [ ] 与现网同架构基底(mBERT-base 系列)→ 延迟档案与内存占用可直接对比;
 - [ ] 随附对照报告与延迟档案(阶段 5 产物包其余各件)。
 
@@ -81,93 +98,96 @@ huggingface-cli download <org>/{{MODEL_TAG}} --revision <sha> \
 
 旧快照目录**不删**:它就是回滚素材(见 §4 第 10 步)。
 
+> 2026-10-14 实况:`sidecars/refine/models/` 当前是 HF hub cache(mBERT +
+> XLM-R-large 两个 snapshot),尚无本地快照目录,也没有 `SHA256SUMS`。
+
 ## 3. 宿主改动 patch 草案
 
-全部改动就四处(+1 待定,见 3.4)。其余文件一行不动。
+**2026-10-14 复核结论:四处里三处已在宿主里(3.2-3.4),切换时只需打 3.1
+这一处**;其余文件一行不动。
 
-### 3.1 `sidecars/refine/compressor.py`
+### 3.1 `sidecars/refine/compressor.py` —— 唯一需要动手的一处
 
-```diff
--MODEL_ID = "microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank"
-+# Leia v1 — local snapshot, sha256-verified (SHA256SUMS)
-+MODEL_ID = os.path.join(os.path.dirname(__file__), "models", "{{MODEL_TAG}}")
+宿主现状(`compressor.py:16-19`)已把 `MODEL_ID` 拆成"环境变量 + 默认值",
+默认值仍指向公开 checkpoint:
+
+```python
+MODEL_ID = os.environ.get(
+    "COMPRESSION_MODEL_ID",
+    "microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank",
+)
 ```
 
-```diff
-     def __init__(self, model_id: str = MODEL_ID):
-         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-+        # 缓存键用的模型身份标签,与加载路径同源(避免手工漂移)
-+        self.model_tag = os.path.basename(os.path.normpath(model_id)) or model_id
-         self.tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=CACHE_DIR)
-```
-
-注:本地路径下 `cache_dir` 参数被 `transformers` 忽略,无副作用;启动加载
-完全离线。失败语义不变——`server.py:22-36` 仍会落到 light mode
-(`compressor=None`,继续服务 rewrite)。
-
-### 3.2 `sidecars/refine/refine_cache.py`
-
-现状键 = `text ‖ rewrite ‖ compress ‖ aggressiveness ‖ min/max_tokens ‖
-meta_prompt_version ‖ refine_model`,**不含压缩模型** → 换权重后旧模型的
-压缩结果会继续命中(静默失效,最危险的一类 bug)。
+`COMPRESSION_MODEL_ID` 是**评测缝**,不是部署路径——宿主代码注释写明它"只为
+leia 的评测基线(issue #9 双 checkpoint 扫描)而存在、在任何部署里都不设"。
+所以**部署切换 = 改默认值那一行**,保持"版本单一来源、可审计"(decisions.md
+§6 的排除项不变):
 
 ```diff
-     meta_prompt_version: str,
-     refine_model: str,
-+    compressor_model: str,
- ) -> str:
-     parts = [
-         ...
-         meta_prompt_version,
-         refine_model,
-+        compressor_model,
-     ]
+ MODEL_ID = os.environ.get(
+     "COMPRESSION_MODEL_ID",
+-    "microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank",
++    # Leia v1 — local snapshot, sha256-verified (SHA256SUMS)
++    os.path.join(os.path.dirname(__file__), "models", "{{MODEL_TAG}}"),
+ )
 ```
 
-调用点 `refiner.py:151-154` 增加实参 `self.compressor.model_tag if
-self.compressor else "none"`(`compressor=None` 时 compress 路径本来就不跑)。
+注:
 
-### 3.3 `crates/gateway/src/refine.rs`
+- `os.path.dirname(__file__)` 给出**绝对路径**——`model_label_for` 的 docstring
+  明确要求部署指向绝对路径(相对路径按进程 CWD 解析);
+- 本地路径下 `from_pretrained` 忽略 `cache_dir`,无副作用;启动加载完全离线;
+- 身份标签由 `model_label_for`(`compressor.py:33-43`)从路径末端取,自动等于
+  `{{MODEL_TAG}}`——与加载路径同源,不会手工漂移;
+- 失败语义不变——`server.py:22-31`(旧记 22-36)仍会落到 light mode
+  (`compressor=None`,继续服务 rewrite)。
 
-sidecar 早已返回 token 计数,网关只反序列化了 `refined_text` + `fallback`:
+**不需要**的改动:`Compressor.__init__` 已接 `model_id` 参数并已设
+`self.model_label`(`compressor.py:47-49`);原草案里那两行 patch 已无必要。
 
-```diff
- pub struct RefineResponse {
-     pub refined_text: String,
-     #[serde(default)]
-     pub fallback: bool,
-+    /// Token counts straight from the sidecar; no prompt content.
-+    #[serde(default)]
-+    pub original_tokens: u64,
-+    #[serde(default)]
-+    pub refined_tokens: u64,
- }
-```
+### 3.2 `sidecars/refine/refine_cache.py` —— 宿主已做,核对即可
 
-### 3.4 `crates/gateway/src/metrics.rs` + `pipeline/transform.rs`
+原风险(键里不含压缩机 → 换权重后旧结果**静默继续命中**)已关闭:
+`make_cache_key` 的第九个参数就是压缩机标签。
+
+**切换时要做的**:零改动。核对三处即可——参数(`refine_cache.py:21`)、键分量
+(`refine_cache.py:42`)、调用点实参 `self.compressor_model`
+(`refiner.py:182-185`,旧记 151-154;该属性在 `refiner.py:141-146`,light mode
+下为 `"none"`)。它同时是"回滚不残留脏缓存"的机制来源。
+
+### 3.3 网关 `crates/gateway/src/refine.rs` —— 宿主已做,核对即可
+
+token 计数与压缩机标签已贯通,且字段落在**每个结果**上而非响应信封:
+`RefineResult`(`refine.rs:200-216`)带 `refined_text` / `fallback` /
+`original_tokens` / `refined_tokens` / `compressor_model` / `warnings`;
+信封 `RefineResponse`(`refine.rs:228-233`)只含 `results`。
+
+**切换时要做的**:零改动。
+
+### 3.4 `crates/gateway/src/metrics.rs` + `pipeline/transform.rs` —— 宿主已做(按原推荐 B)
+
+原推荐的 (B)(标签由 sidecar 单一来源供给)已落地;实现签名与原草案不同——
+按"一对计数"记录,标签名是 `compressor` 而非 `model`(宿主 CONTEXT.md 把裸
+`model` 保留给 catalog 模型):
 
 ```rust
-pub fn record_refine_tokens(direction: &str, model: &str, count: u64) {
-    metrics::counter!(
-        REFINE_TOKENS_TOTAL,
-        "direction" => direction.to_owned(),   // original | refined
-        "model" => model.to_owned(),
-    )
-    .increment(count);
+pub fn record_refine_tokens(compressor: &str, original_tokens: u64, refined_tokens: u64) {
+    for (direction, tokens) in [("original", original_tokens), ("refined", refined_tokens)] {
+        metrics::counter!(
+            REFINE_TOKENS_TOTAL,
+            "direction" => direction.to_owned(),
+            "compressor" => compressor.to_owned()
+        )
+        .increment(tokens);
+    }
 }
 ```
 
-调用点:`transform.rs:85-103`(`record_refine` / `record_refine_duration`
-附近),按 sidecar 响应各记一次。
+(`metrics.rs:112-121`;调用点 `transform.rs:220-224`,旧记 85-103。)
 
-**待定实现项(唯一一个)**:`model` 标签从哪来——
-
-- (A) 宿主侧部署常量(如 env `REFINE_COMPRESSOR_MODEL=leia-v1`):零 sidecar
-  改动,但与 `compressor.py` 的 `MODEL_ID` 两个来源,存在漂移风险;
-- (B) sidecar `RefineResponse` 加 `compressor_model` 字段(取自
-  `Compressor.model_tag`,light mode 为 `"none"`):单一来源,改动 +1 处。
-
-**推荐 (B)**:标签是"新旧可比"的唯一凭据,值得多改一处。
+**切换时要做的**:零改动。观察阶段读
+`refine_tokens_total{direction=original|refined, compressor=<标签>}`——**新旧
+权重的前后对比是现成的**,`compressor` 标签值即 `{{MODEL_TAG}}`。
 
 隐私:只记计数,不记 prompt 内容——与宿主既有边界一致。
 
@@ -175,17 +195,18 @@ pub fn record_refine_tokens(direction: &str, model: &str, count: u64) {
 
 1. 落盘快照并跑 §2 的 sha256 校验(`leia delivery verify <快照目录>`
    同步跑契约校验);
-2. 打 §3 的 patch(4 处 + 3.4 的 A/B 选择);
+2. 打 §3.1 的**一处** patch(3.2-3.4 只核对,不改);
 3. 冷启动 sidecar(uvicorn);
 4. `GET /health` → `{"status":"ok","compressor":true}`(false = light mode,停);
 5. stub 冒烟:本仓 `uv run leia eval run --config eval/configs/fixture.toml`
    (零网络零花费);
-6. 真链路回归:本仓 pinned harness 跑冻结评测包全量(147 条 ≈ 600 次网关
+6. 真链路回归:本仓 pinned harness 跑冻结评测包全量(**149 条** ≈ 600 次网关
    调用),走宿主网关的账本;
 7. 对照冻结基线核判据:质量 delta 95% CI 下界 ≥ 0 且压缩率或 fact recall 有
    一项显著提升——**持平即停,不切换**;
-8. 切换(改常量 + 重启);
-9. 观察:applied/fallback/skipped 计数 + token 节省指标(按 `model` 标签);
+8. 切换(改 `MODEL_ID` 默认值 + 重启);
+9. 观察:applied/fallback/skipped 计数 + token 节省指标
+   (`refine_tokens_total` 按 `compressor` 标签分组);
 10. 异常回滚:`git revert` + 重启;旧快照仍在原地,缓存键已变,老条目自然
     失效——回滚不残留脏缓存。
 
@@ -221,7 +242,9 @@ pub fn record_refine_tokens(direction: &str, model: &str, count: u64) {
 
 ## 8. 待现场确认(本仓侦察无法确定)
 
-- 生产宿主是否有仓外的容器/编排(宿主仓内无 Dockerfile/compose/k8s 证据);
+- 生产宿主是否有仓外的容器/编排 → **2026-10-14 复核:宿主仓内仍无 Dockerfile
+  / compose / k8s(仅 CI 里的 postgres service,以及一个被 gitignore 的上游
+  副本),部署形态是裸机**(`scripts/dev.sh` + `docs/deployment-smoke.md`);
 - `sidecars/refine/models/` 在目标环境是否持久(裸机进程重启后仍在);
 - 是否存在会带上 sidecar 的自托管客户包(SaaS-only 判断来自宿主 ADR-0017,
   但环上没有直接证据)。
