@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 03 课 · 数据从哪来，红线在哪 — Leia 学习空间</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main class="lesson">
+
+<p class="eyebrow">Leia 学习空间 · 第 03 课 · 面向团队</p>
+<h1>数据从哪来，红线在哪</h1>
+
+<p class="lede">模型的口味全部来自数据。这个项目的数据策略只有<em>两条不可谈判的红线</em>和一套可迭代的配比主张——其余的都是假设，红线不是。</p>
+
+<p class="meta">
+  <span>约 15 分钟</span>
+  <span>数字来自冻结语料与 pilot 蒸馏实跑记录</span>
+  <span>配套：<a href="../reference/glossary.html">术语表</a> · <a href="index.html">课程目录</a></span>
+</p>
+
+<h2><span class="num">01</span>三类负载，三种来源</h2>
+
+<p>训练集不是「找一批文本」，而是照着<strong>生产里会被压缩的东西</strong>配出来的。生产的压缩面是显式启用压缩档的工作区，被压的文本就三类：</p>
+
+<table>
+  <thead><tr><th>负载类型</th><th>来源</th><th class="num">冻结条数</th><th>为什么这么取</th></tr></thead>
+  <tbody>
+    <tr><td>RAG 长文</td><td>LongBench 公开子集（hotpotqa + gov_report，取 train 半侧）</td><td class="num">300</td><td>公开打底：基座模型已在这种文风上训过，作用是锚住通用抽取能力</td></tr>
+    <tr><td>system prompt</td><td>合成：10 个手写场景族 × 种子变体</td><td class="num">350</td><td>没有公开数据集；生产风格只能造</td></tr>
+    <tr><td>多轮对话历史</td><td>合成：同样 10 族 × 种子变体</td><td class="num">350</td><td>受隐私边界约束不可采集，只能造</td></tr>
+  </tbody>
+</table>
+
+<p>配比锚点是 <strong>30% / 35% / 35%</strong>，形状是「公开打底 + 两类加重」。加重后两类的理由很直白：<em>缺口在那里</em>——公开数据集对生产风格 system prompt 与多轮历史没有覆盖，微调的收益只可能落在它们身上。合成的占比另外有一个上限（约 2/3），防止把模型过拟到模板文风——占比过高时，考卷上的合成条目会虚高而真实负载不涨。</p>
+
+<p class="note">合成层不是「让模型随便写」：10 个场景族是手写的，种子只负责填槽位（每族几十到几百种组合）。选取器的规则是确定性的——同输入同输出——且逐族录取计划全部写进 manifest 并 sha256 锚定。重建入口：<code>scripts/build_synthetic_training.py</code>。</p>
+
+<h2><span class="num">02</span>蒸馏五步：把「教师怎么删词」变成标签</h2>
+
+<p>有了 1000 条语料还只是原料。真正教会模型的是<strong>一个教师模型在这些文本上删了什么</strong>，而这个行为要被还原成逐词标签：</p>
+
+<ol class="steps">
+  <li><strong>切块。</strong>每条语料按 ≤512 token 切开，优先在句边界断。1000 条 → <strong>7322 个块</strong>，其中 65 个是纯标点/空白的残片（无词可标，跳过不计费）。</li>
+  <li><strong>教师压缩。</strong>固定 prompt 要求教师<em>只删不改</em>：「你可以只删除不重要的词 / 不要改变词序 / 不要改动原词 / 不要用缩写或 emoji / 不要新增词或符号」。教师是 <code>deepseek/deepseek-v4-pro</code>，模板版本 <code>llmlingua2-paper-v1</code>（sha256 <code>84581c12…</code>）。</li>
+  <li><strong>滑窗模糊匹配。</strong>把教师输出里的词逐个对回原文位置（窗口 150 个词），得到逐词的 keep / drop 标签。它是启发式，必然有对不齐的地方。</li>
+  <li><strong>质控。</strong>先丢掉<em>变差率</em>最高的 5%（教师输出了原文里找不到的词 → 疑似幻觉），再丢掉幸存者里<em>对齐间隙</em>最差的 10%（标签对不齐）。</li>
+  <li><strong>微调。</strong>用剩下的标签训练一个双向编码器——就是推理时跑的那个 checkpoint。</li>
+</ol>
+
+<p>下面这台机器用的是<strong>真实样本</strong>：左边是教师写的压缩结果，下面是匹配器把保留标签打回原文的样子，最后是这一条在质控里的判定。</p>
+
+<div class="sim" id="sim-distill"></div>
+
+<p class="note">样本来自冻结的 pilot 蒸馏产物（<code>training/distill/pilot-v1/</code>，115 条语料 / 299 个块 / 保留 255 个）。「边界样本」的标签 <code>gap = 0.0049</code> 正好压在切线上——它是这一批里被保留的最后一名，再差一点就被丢掉。</p>
+
+<p>两个从真实数字里看出来的东西：</p>
+
+<ul>
+  <li><strong>教师比想象中保守。</strong>它的平均保留率是 <strong>0.7319</strong>（中位数 0.7046）——删掉约四分之一，而不是大刀阔斧。压缩率的天花板从一开始就被教师的行为定住了。</li>
+  <li><strong>哪一类被质控丢得最多？</strong>system prompt：60 个块里丢了 <strong>20 个</strong>（33%），而 RAG 只丢 17/149、对话丢 7/90。规则化的长清单文本更容易让「只删不改」的要求翻车——这类样本的标签质量天然更脆。</li>
+</ul>
+
+<div class="quiz">
+  <p class="quiz-q">教师输出里出现了原文没有的词，主要由哪一步处理？</p>
+  <button class="quiz-opt" data-correct="true">变差率过滤：丢掉波动最大的</button>
+  <button class="quiz-opt" data-correct="false">对齐间隙过滤：丢掉对不齐的</button>
+  <button class="quiz-opt" data-correct="false">分块步骤：超出窗口的会被切</button>
+  <button class="quiz-opt" data-correct="false">许可核查：来源不合规的丢弃</button>
+  <p class="quiz-fb"></p>
+</div>
+
+<h2><span class="num">03</span>红线一：MeetingBank</h2>
+
+<p>MeetingBank（会议纪要语料）看起来是一份完美的公开数据集——长文本、干净、有标注。它被<strong>硬拒</strong>，连评测集都不能进。原因一句话：</p>
+
+<div class="callout">
+  <span class="label">硬约束 1</span>
+  <p>MeetingBank 是<strong>基座 checkpoint 的训练集</strong>。用它训练 = 教学生在考卷上背答案；用它评测 = 用学生背过的题考他。两条路都会让「优于公开 checkpoint」这个结论失去意义。</p>
+</div>
+
+<p>这条约束不是写在文档里的君子协定，而是代码里的硬检查——语料校验器对来源做字符串匹配，命中即判违约：</p>
+
+<pre><code># src/leia/corpus.py:404 —— 训练语料校验器
+if "meetingbank" in f"{source.get('dataset','')}/{source.get('subset','')}".lower():
+    fail("MeetingBank is excluded by hard constraint (base checkpoint training set)")</code></pre>
+
+<p>冻结 manifest 里同时记录了三类排除（<code>exclusions</code> 字段）：MeetingBank、客户 prompt、以及任何 <code>train_use=false</code> 的子集。团队要记住的是一般化的那条：</p>
+
+<div class="rule-box">
+  <h3>新增数据集前的三问</h3>
+  <ol>
+    <li>它是不是基底 checkpoint（LLMLingua-2）用过的东西？——是，就是污染，出局。</li>
+    <li>它里面有没有客户内容？——有，出局，无例外。</li>
+    <li>逐文档的许可能不能核验到「允许训练」？——核验不了，只进考卷，不进训练。</li>
+  </ol>
+</div>
+
+<h2><span class="num">04</span>红线二：客户 prompt</h2>
+
+<p>生产的压缩发生在客户请求上，那些文本是最真实、最对口味的训练数据——而且<strong>永远不能碰</strong>：不能训练，也不能评测。这是隐私边界与 ZDR（零数据保留）workspace 承诺的直接推论，没有讨论余地。</p>
+
+<p>这条红线的代价很具体：生产风格 system prompt 与多轮对话这两类<em>没有公开数据集可用</em>，只能靠合成（第 1 节的 700 条）。换句话说，<strong>合成层不是偷懒，是被隐私边界逼出来的唯一选项</strong>——这也是它为什么值得被认真设计（场景族、种子限制、防模板过拟）。</p>
+
+<p class="note">同理可推：任何「把线上流量捞一点出来做分析」的提议，在数据进入训练或评测之前就被这堂课拦下。要分析就分析聚合指标，不碰 prompt 内容。</p>
+
+<h2><span class="num">05</span>切分纪律：教材与考卷不能同源</h2>
+
+<p>「训练集和评测集要分开」人人都知道，难的是<strong>在合成数据上</strong>怎么做到——合成数据来自同一套生成器，天然同源。项目的做法是两道锁：</p>
+
+<ol>
+  <li><strong>种子池互斥。</strong>考卷用 101–110，训练用 901–990（预留 headroom，不是配额）。两侧校验器互相断言：考卷侧生成器对训练种子直接报错，训练侧对考卷种子报错。</li>
+  <li><strong>内容层再断言一次零重叠。</strong>因为不同种子也可能渲染出逐字节相同的文本（槽位池小的族里是常态）——选取器在内容层去重，并断言与考卷指纹集合零交集。</li>
+</ol>
+
+<p>公开语料那边用另一种可复现的切法：把条目按 <code>sha1(内容)</code> 升序排列，前一半给考卷、后一半给训练。切分由内容决定，不靠随机数——任何人重跑都能得到同一刀，也永远不会有条目跨过边界。</p>
+
+<div class="quiz">
+  <p class="quiz-q">为什么合成语料的训练段与考卷段必须用互斥的种子池？</p>
+  <button class="quiz-opt" data-correct="true">同一批种子会让教材考卷重合</button>
+  <button class="quiz-opt" data-correct="false">种子池决定生成器的模板风格</button>
+  <button class="quiz-opt" data-correct="false">训练段的语料需要更多的变体</button>
+  <button class="quiz-opt" data-correct="false">考卷段必须先于训练段生成完</button>
+  <p class="quiz-fb"></p>
+</div>
+
+<h2><span class="num">06</span>许可：能不能用，取决于逐条证据</h2>
+
+<table>
+  <thead><tr><th>来源</th><th>许可</th><th>能否用于训练</th><th>依据要点</th></tr></thead>
+  <tbody>
+    <tr><td>hotpotqa</td><td>CC BY-SA 4.0</td><td><strong>可</strong></td><td>义务是署名 + 同享：model card 如实声明衍生关系；权重不分发（SaaS-only），义务不触发分发条款</td></tr>
+    <tr><td>gov_report</td><td>美国联邦政府作品（公有领域）+ 再分发层 CC BY 4.0</td><td><strong>可</strong></td><td>17 U.S.C. §105；语料内自带 GAO 声明可核</td></tr>
+    <tr><td>qasper</td><td>记录口径 CC BY-NC 4.0（保守）</td><td><strong>不可</strong>（只进考卷）</td><td>创建者卡片说 CC BY 4.0，但构成论文全文的逐篇许可是 CC-BY-* 变体（含 NC/SA），从分发行无法逐条核验 → 保守排除</td></tr>
+    <tr><td>MeetingBank</td><td>—</td><td><strong>硬拒</strong></td><td>基座训练集（硬约束 1）</td></tr>
+    <tr><td>客户 prompt</td><td>—</td><td><strong>硬拒</strong></td><td>隐私边界 / ZDR（硬约束 2）</td></tr>
+  </tbody>
+</table>
+
+<p>这里的取舍值得团队记住：qasper 的排除<strong>不是因为它一定不能用</strong>，而是因为「核验不了」——证据链要求逐条可查，记录口径存疑时就选保守。许可结论逐条带证据链接，落在 <code>eval/manifests/subsets.toml</code> 里，评审时可以一条条点开看。</p>
+
+<div class="quiz">
+  <p class="quiz-q">qasper 被排除出训练集，直接原因是什么？</p>
+  <button class="quiz-opt" data-correct="true">逐文档许可变体无法核验</button>
+  <button class="quiz-opt" data-correct="false">它的数据规模对训练太小</button>
+  <button class="quiz-opt" data-correct="false">它的许可与文献记录冲突</button>
+  <button class="quiz-opt" data-correct="false">它的规模超过了蒸馏预算</button>
+  <p class="quiz-fb"></p>
+</div>
+
+<div class="quiz">
+  <p class="quiz-q">为什么 MeetingBank 连用来评测都不行？</p>
+  <button class="quiz-opt" data-correct="true">它是基座模型的训练数据</button>
+  <button class="quiz-opt" data-correct="false">许可条款禁止商业性使用</button>
+  <button class="quiz-opt" data-correct="false">它的语言与生产负载不符</button>
+  <button class="quiz-opt" data-correct="false">它的规模不足以当作基准</button>
+  <p class="quiz-fb"></p>
+</div>
+
+<h2><span class="num">07</span>花钱的纪律：先归档决策，再花钱</h2>
+
+<p>教师调用是要付费的，全量蒸馏的预算是 <strong>≤7257 次网关调用</strong>（输入约 4.2M token）。项目在这件事上的做法有两条可复制的纪律：</p>
+
+<ul>
+  <li><strong>先决策归档，后花钱。</strong>定容决策文件先写清楚总量、配比、teacher、预算与超支处置，再开跑；数字对不上就中止回炉，不静默追加。</li>
+  <li><strong>崩溃零成本重放。</strong>每次调用按<em>内容地址</em>记账（chunk 字节 + teacher + prompt + 分块参数）。kill 掉进程再重启，只会补跑没入账的块——pilot 的 299 次调用在全量跑里原样重放、零计费。</li>
+</ul>
+
+<p>还有一个「不省钱」的决定同样值得看：全量语料里 RAG 类占了 84% 的块（长文天然块多，质控前口径），而 system prompt 只占 5%。团队里常见的直觉是下采样到 30/35/35——项目的决定是<strong>不下采样</strong>：那等于丢掉已付费、已质控合格的监督信号，还会引入位置偏差；条目层的配比（30/35/35）已经在控制分布覆盖，行层的倾斜留给阶段 3 的验收数据回答。</p>
+
+<h2><span class="num">08</span>收尾：三句话</h2>
+
+<div class="rule-box">
+  <h3>记住这三句就够用</h3>
+  <ol>
+    <li><strong>数据照着生产负载配，不照着考卷配。</strong>三类负载 30/35/35：公开打底 + 两类合成加重。</li>
+    <li><strong>两条红线不可谈判。</strong>MeetingBank 是基底训练集（污染），客户 prompt 是隐私边界（无例外）——两者都硬编码在校验器里。</li>
+    <li><strong>教材与考卷必须不同源。</strong>公开集按内容哈希对半切，合成集用互斥种子池 + 内容层零重叠断言。</li>
+  </ol>
+</div>
+
+<h3>不看上文，写一遍</h3>
+<p>有同事问：「既然线上 prompts 最真实，为什么不捞一点来训练？」用三句话回答，并说出你会怎么验证这个回答真的被执行了。</p>
+
+<div class="recall" data-key="lesson-0003:why-not-customer-prompts">
+  <textarea placeholder="1. …&#10;2. …&#10;3. …"></textarea>
+  <div class="recall-bar"><button class="recall-btn" type="button">对照参考答案</button></div>
+  <div class="recall-answer">
+    <p>1. <strong>客户 prompt 是隐私边界，无例外</strong>——训练与评测都不允许，这是对 ZDR workspace 的承诺，不是可以权衡的成本项；<br>
+       2. <strong>真实不等于可用</strong>——生产风格分布可以用合成数据逼近（场景族 × 种子），代价是多样性受模板约束，项目用「合成封顶 2/3 + 公开 30% 打底」对冲；<br>
+       3. <strong>验证方式</strong>：看校验器与冻结 manifest——<code>exclusions.customer_prompts</code> 字段、语料校验器拒绝非许可来源、以及单测里对这些拒绝路径的断言。口头的纪律要靠代码里的拒绝来证明。</p>
+  </div>
+</div>
+
+<h3>主读物（一课一份）</h3>
+<ul>
+  <li><code>docs/data-strategy.md</code> — 蒸馏管线与两条硬约束的权威表述（短，五分钟读完）；</li>
+  <li><code>docs/training-mix.md</code> — 30/35/35 配比的理由与逐子集许可速览；</li>
+  <li><code>eval/manifests/subsets.toml</code> — 逐子集的训练用途证据链，评审时逐条可点。</li>
+</ul>
+
+<div class="ask-teacher">
+  <b>我是你的老师，随时打断我。</b>这一课值得追问的三句：「质控丢掉的那 44 个块，丢掉的是什么信息？」「如果有一天要引入新语料，第一步做什么？」「行层倾斜对训练到底有什么影响？」——任何不清楚的地方都可以直接问。
+</div>
+
+<div class="docnav">
+  <p><strong>下一课候选</strong>：① 交付与接入（产物包五件、drop-in 契约、供货与回滚）；② 滑窗模糊匹配与对齐间隙的细节；③ v2 query-aware 为什么接入面最难。</p>
+  <p style="margin-top:1rem">参考：<a href="index.html">课程目录</a> · <a href="../reference/glossary.html">术语表</a> · <a href="0001-what-happens-when-compress-runs.html">第 01 课</a> · <a href="0002-reading-our-numbers.html">第 02 课</a></p>
+</div>
+
+</main>
+
+<script src="../assets/data/distill-samples.js"></script>
+<script src="../assets/distill-demo.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+  DistillDemo.mount(document.getElementById("sim-distill"), window.LEIA_DISTILL);
+</script>
+</body>
+</html>

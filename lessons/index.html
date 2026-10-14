@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>课程目录 — Leia 学习空间</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main class="doc">
+
+<p class="eyebrow">Leia 学习空间</p>
+<h1>从这里开始</h1>
+<p class="lede">这套材料的用途是<em>让团队理解 Leia 这个项目</em>：它怎么压缩、凭什么说更好、数据从哪来、最后怎么交付。每课 15 分钟，可以自己读，也可以直接转给同事。</p>
+<p class="meta"><span>语言：中文</span><span>不带交互也能读懂；交互部分用来加深记忆</span><span>所有数字可在仓库里复现</span></p>
+
+<h2><span class="num">1</span>课程（按顺序读）</h2>
+
+<dl class="gloss">
+  <dt><a href="0001-what-happens-when-compress-runs.html">第 01 课 · 一次压缩调用里发生了什么</a>
+    <span class="en">压缩机制</span></dt>
+  <dd>模型给每个 token 打一个「该保留」的概率，低于档位的删掉，输出是输入的 token 子序列。含真实前向的可交互演示，以及一个现场诊断：fact recall 0.7699 从哪来。
+    <span class="src">读完能：向别人讲清压缩的五步，并预判档位改动会发生什么</span>
+  </dd>
+
+  <dt><a href="0002-reading-our-numbers.html">第 02 课 · 怎么读我们的数字</a>
+    <span class="en">评测与验收尺</span></dt>
+  <dd>同一个压缩率有两个口径；代理指标会背离任务质量；判据为什么是「区间下界不为负」。用冻结全量的真实逐条差值，亲手跑一次配对 bootstrap。
+    <span class="src">读完能：拿到任何一张数字表，先问出该问的五句话</span>
+  </dd>
+
+  <dt><a href="0003-where-the-data-comes-from.html">第 03 课 · 数据从哪来，红线在哪</a>
+    <span class="en">数据策略与许可</span></dt>
+  <dd>三类负载怎么配（30/35/35）、蒸馏五步怎么把教师行为变成逐词标签、两条硬红线（MeetingBank 污染 / 客户 prompt 隐私）与切分、许可纪律。含真实蒸馏样本的可交互演示。
+    <span class="src">读完能：判断一份新语料能不能进训练集，并说清为什么</span>
+  </dd>
+
+  <dt><a href="0004-delivery-and-integration.html">第 04 课 · 交付与接入</a>
+    <span class="en">交付、drop-in 契约、供货与回滚</span></dt>
+  <dd>「替换」的实质（只换 compress 阶段的权重）、产物包五件、drop-in 契约四条各对应宿主哪一行代码、<code>delivery verify</code> 的两层三种判定、切换与回滚 runbook。含契约体检台：亲手弄坏一处看判定怎么动。
+    <span class="src">读完能：向宿主讲清要改哪儿、怎么上线、怎么退回来</span>
+  </dd>
+</dl>
+
+<p class="note"><b>后面还没写。</b>候选主题：滑窗模糊匹配与对齐间隙的细节（偏实现）；v2 query-aware 为什么接入面反而最难；把 fact recall 0.7699 的诊断做成可复现实验。想先看哪个，直接说。</p>
+
+<h2><span class="num">2</span>参考文档（可单独使用）</h2>
+
+<dl class="gloss">
+  <dt><a href="../reference/glossary.html">压缩术语表</a></dt>
+  <dd>中英对照，每课共用一套词。写文档或对外说话时先查这里，避免生造词。</dd>
+
+  <dt><a href="../reference/compress-pipeline.html">压缩管线速查</a></dt>
+  <dd>决策规则、旋钮常量、已知破口、基线数字。适合贴在工位上，或作为评审时的对照表。</dd>
+
+  <dt><a href="../reference/metrics-checklist.html">读表五问</a></dt>
+  <dd>引用任何数字前的检查清单，含四个指标的定义与冻结身份（考卷哈希、judge、判据口径）。</dd>
+
+  <dt><a href="../reference/delivery-contract.html">交付与接入速查</a></dt>
+  <dd>替换边界（变与不变）、契约四条对应的宿主坐标、产物包五件、切换与回滚 runbook、再交付触发器，以及现状与文档漂移。</dd>
+</dl>
+
+<h2><span class="num">3</span>按角色挑读法</h2>
+
+<table>
+  <thead><tr><th>你的处境</th><th>读什么</th><th class="num">耗时</th></tr></thead>
+  <tbody>
+    <tr><td>只想知道这东西靠不靠谱</td><td>第 01 课 §1–§5</td><td class="num">约 8 分钟</td></tr>
+    <tr><td>要看懂报告、参与评审</td><td>第 02 课全部 + <a href="../reference/metrics-checklist.html">读表五问</a></td><td class="num">约 20 分钟</td></tr>
+    <tr><td>要接入、上线或评审交付</td><td>第 04 课全部 + <a href="../reference/delivery-contract.html">交付速查</a></td><td class="num">约 25 分钟</td></tr>
+    <tr><td>要接手代码或调参</td><td>第 01 课 + 第 03 课 + <a href="../reference/compress-pipeline.html">管线速查</a> + 复现脚本</td><td class="num">约 45 分钟</td></tr>
+    <tr><td>要对外解释这个项目</td><td>第 01 课 §1–§3、第 02 课 §1–§3</td><td class="num">约 15 分钟</td></tr>
+  </tbody>
+</table>
+
+<div class="docnav">
+  <p>数字的最终权威永远在仓库里：<code>docs/evaluation.md</code>（验收尺）· <code>docs/decisions.md</code>（决策与排除项）· <code>docs/baselines/</code>（冻结基线归档）。课文是入口，不是权威。</p>
+</div>
+
+</main>
+</body>
+</html>

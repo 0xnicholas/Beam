@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 01 课 · 一次压缩调用里发生了什么 — Leia 学习空间</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main class="lesson">
+
+<p class="eyebrow">Leia 学习空间 · 第 01 课</p>
+<h1>一次压缩调用里发生了什么</h1>
+
+<p class="lede">Leia 的压缩只有一个动作：<em>让模型给每个 token 打一个「该保留」的概率，低于阈值的删掉</em>。整条压缩链路——档位、事实、分块、蒸馏——都是这一句话的推论。</p>
+
+<p class="meta">
+  <span>约 15 分钟</span>
+  <span>所有数字均为本机实测（可复现，见文末）</span>
+  <span>配套：<a href="../reference/glossary.html">术语表</a> · <a href="../reference/compress-pipeline.html">压缩管线速查</a></span>
+</p>
+
+<h2><span class="num">01</span>先把压缩放回链路里</h2>
+
+<p>生产的 refine 是两段：<strong>compress</strong>（本地 BERT，毫秒级，无网络）和 <strong>rewrite</strong>（网关的大模型回调，可选）。真正能省下 token 的是第一段；第二段是质量补偿。Leia 的全部工作，就是替换第一段里的那一个 checkpoint 权重——接口、协议、fail-open 语义一概不动。</p>
+
+<div class="callout">
+  <span class="label">本课的边界</span>
+  <p>这 15 分钟只解剖 compress 这一段：从 <code>compress()</code> 收到文本，到吐出压缩文本。它是唯一一处「模型在做决策」的地方，也是最值得先弄懂的机器。</p>
+</div>
+
+<h2><span class="num">02</span>五步解剖</h2>
+
+<p>生产实现是 <code>tokencamp-pro/sidecars/refine/compressor.py</code>，不到 300 行。核心路径只有下面这些，逐行对应：</p>
+
+<ol class="steps">
+  <li>
+    <strong>分词，顺带取字符偏移。</strong>fast tokenizer 把文本切成 subword，并给出每个 token 在原串里的字符区间（<code>return_offsets_mapping</code>）。偏移是第 4 步定位事实的坐标系。
+    <span class="where">compressor.py:153</span>
+  </li>
+  <li>
+    <strong>前向一次。</strong><code>BertForTokenClassification</code> 输出 <code>(1, seq_len, 2)</code> 的 logits——每个 token 两个分数：drop / keep。双向编码器意味着第 300 个 token 也「看得见」第 3 个 token。
+    <span class="where">compressor.py:159–161</span>
+  </li>
+  <li>
+    <strong>取第 1 列的概率。</strong>对两列做 softmax，取 <code>[:, :, 1]</code>，得到每个 token 的 <code>p(keep)</code>。注意：这不是「重要度打分」，而是一个二分类概率——模型回答的问题不是「这个词多重要」，而是「教师模型在这个位置会不会删掉它」。
+    <span class="where">compressor.py:164</span>
+  </li>
+  <li>
+    <strong>三处强制置 1.0。</strong><code>[CLS]</code>/<code>[SEP]</code>、命中 <code>_FACT_PATTERN</code> 的 token、<code>&lt;tc_keep&gt;</code> 保护段覆盖的 token——把它们保留概率直接写成 1.0，任何阈值都删不掉。
+    <span class="where">compressor.py:167–191</span>
+  </li>
+  <li>
+    <strong>比阈值，然后解码。</strong>阈值就是「档位」本身；保留下来的 token id 交给 tokenizer 拼回文本。
+    <span class="where">compressor.py:194–195, 218</span>
+  </li>
+</ol>
+
+<pre><code># sidecars/refine/compressor.py —— 第 4、5 步的原文
+threshold = aggressiveness            # 档位就是阈值，不是比例
+keep_mask = probs &gt;= threshold        # 逐 token 比较
+kept_ids  = inputs["input_ids"][0][keep_mask]
+compressed_text = self.tokenizer.decode(kept_ids, skip_special_tokens=True)</code></pre>
+
+<p class="note"><b>为什么是二分类而不是打分排序？</b>因为抽取式压缩天然是「留 / 删」的二值决策。LLMLingua-2 论文把提示压缩形式化为 token 分类问题，正是为了让输出保证是输入的子序列——见文末主读物。</p>
+
+<p>删掉的是 token，不是词。中文在 mBERT 里几乎一字一 token，英文单词则常被切成 <code>chur</code> + <code>##n</code> 这样的片段——每个片段各自有概率、各自独立生死。这个细节会在第 7 节咬人。</p>
+
+<h2><span class="num">03</span>亲手走一遍（真实前向）</h2>
+
+<p>下面这张图不是示意，是本机把生产 checkpoint 的一次真实前向导出成的：每个方框是一个 token，框里是它在原文里的字样，框下是模型给它的 <code>p(keep)</code>。点档位，看谁生谁死。</p>
+
+<div class="sim" id="sim-zh"></div>
+
+<p class="note">数据：生产 checkpoint <code>llmlingua-2-bert-base-multilingual-cased-meetingbank</code>，单句、无分块（56 个 token，含两个特殊 token），未启用 <code>min_tokens</code> / <code>max_tokens</code>——与生产默认路径一致。</p>
+
+<p>三件值得盯着看的事：</p>
+
+<ul>
+  <li><strong>边界很清楚。</strong><code>你</code> 0.15、<code>是</code> 0.20、<code>如</code> 0.06、<code>请</code> 0.02、两个逗号 0.04 / 0.01——功能词和标点几乎注定被删；<code>退</code> 0.98、<code>款</code> 0.98、<code>订</code> 0.96、<code>单</code> 0.95——实词几乎注定保留。压缩后的文本读起来像电报体，正是因为标点被系统性地删掉了。</li>
+  <li><strong>0.3 档和 0.4 档的保留数完全一样（40/56）。</strong>阈值是连续值，但 token 的概率分布是散的：0.3 到 0.4 之间这段区间里没有任何 token 落着，于是抬档位什么也没发生。改档位不等于改结果。</li>
+  <li><strong>事实被钉住。</strong><code>#A-1029</code> 与 <code>3</code> 的每个字符都是 1.00（带红框），从 0.1 到 0.5 一动不动。</li>
+</ul>
+
+<p>换一条英文句子，同一套规则、同样的默认档位 0.2：</p>
+
+<table>
+  <thead>
+    <tr><th>档位</th><th class="num">保留 / 总数</th><th class="num">压缩率</th><th>实测压缩输出</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>0.1</td><td class="num">30 / 39</td><td class="num">23.1%</td><td><code>Revenue grew 12. 5 % year over year churn increased driven mainly by enterprise segment Analysts expect trend to continue through Q3</code></td></tr>
+    <tr><td><strong>0.2</strong></td><td class="num">29 / 39</td><td class="num">25.6%</td><td><code>Revenue grew 12. 5 % year over year churn increased driven by enterprise segment Analysts expect trend to continue through Q3</code></td></tr>
+    <tr><td>0.3</td><td class="num">27 / 39</td><td class="num">30.8%</td><td><code>Revenue grew 12. 5 % year year churn increased driven by enterprise segment Analysts expect trend continue through Q3</code></td></tr>
+  </tbody>
+</table>
+
+<p>原文里的 <code>However,</code>、<code>also</code>、<code>mainly</code>、<code>the</code> 全部消失，<code>enterprise</code> / <code>segment</code> / <code>trend</code> 全部留下——模型的口味和人挑重点的直觉高度重合。但注意 <code>12. 5 %</code> 那几个空格：这个现象是第 7 节的主角。</p>
+
+<div class="quiz">
+  <p class="quiz-q">上面英文句子里，档位 <strong>0.3</strong> 时下面四个 token 哪一个会被<strong>保留</strong>？</p>
+  <button class="quiz-opt" data-correct="false">over（p = 0.29）</button>
+  <button class="quiz-opt" data-correct="true">year（p = 0.42）</button>
+  <button class="quiz-opt" data-correct="false">mainly（p = 0.20）</button>
+  <button class="quiz-opt" data-correct="false">to（p = 0.24）</button>
+  <p class="quiz-fb"></p>
+</div>
+
+<h2><span class="num">04</span>档位不是比例</h2>
+
+<p>这是最容易记错的一件事：<code>aggressiveness = 0.2</code> <strong>不是</strong>「压掉 20%」，而是「保留概率低于 0.2 的全删掉」。它是一个绝对概率门槛，压缩率是它作用在这批 token 上的<strong>结果</strong>——由文本内容、模型校准共同决定，事前不可知。</p>
+
+<table>
+  <thead>
+    <tr><th>口径</th><th class="num">档位 0.1</th><th class="num">0.2（默认）</th><th class="num">0.3</th><th class="num">0.4</th><th class="num">0.5</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>本课中文例句（56 token）</td><td class="num">14.3%</td><td class="num">21.4%</td><td class="num">28.6%</td><td class="num">28.6%</td><td class="num">32.1%</td></tr>
+    <tr><td>本课英文例句（39 token）</td><td class="num">23.1%</td><td class="num">25.6%</td><td class="num">30.8%</td><td class="num">30.8%</td><td class="num">33.3%</td></tr>
+    <tr><td>冻结考卷 149 条（mBERT，计费口径）</td><td class="num">22.0%</td><td class="num">29.5%</td><td class="num">35.9%</td><td class="num">41.8%</td><td class="num">47.5%</td></tr>
+  </tbody>
+</table>
+
+<p class="note">考卷一行来自冻结基线 <code>docs/evaluation.md</code>（2026-09-12 双 checkpoint 全量）；前两行是本机按生产代码路径实测。三行同一个档位，三个不同的压缩率。</p>
+
+<p>推论有三条，一条比一条重要：</p>
+
+<ol>
+  <li><strong>压缩率不是可指定的输入。</strong>想「压到 30%」只能扫档位去找，不能填一个数字要求它。</li>
+  <li><strong>同档位才能比模型。</strong>换模型会换校准曲线——公开 XLM-R-large 在 0.1 档保留率 0.790，同档 mBERT 是 0.780，同样的代码、同样的阈值，出来的比例就是不一样。所以验收标准写的是「同档 aggressiveness 对比」，测的是「同档不同模型」。</li>
+  <li><strong>fact recall 在五档上完全没动</strong>：mBERT 五档全是 0.7699。阈值管不到它——事实被正则钉死了。既然如此，缺的那 23% 是从哪儿漏的？第 7 节回答。</li>
+</ol>
+
+<div class="quiz">
+  <p class="quiz-q">把档位从 0.2 调到 0.4，压缩率会随之变成 40% 吗？</p>
+  <button class="quiz-opt" data-correct="true">不会：档位是概率阈值，压缩率是结果</button>
+  <button class="quiz-opt" data-correct="false">会：档位就是压缩目标，两者应当相等</button>
+  <button class="quiz-opt" data-correct="false">会：压缩率等于一减去档位，直接换算</button>
+  <button class="quiz-opt" data-correct="false">不会：压缩率由所用分词器的词表决定</button>
+  <p class="quiz-fb"></p>
+</div>
+
+<h2><span class="num">05</span>两把免死金牌</h2>
+
+<p>模型的口味再好也不能全信——数字和编号一旦被删，下游就会拿着残缺的事实回答用户。所以有两处机制绕过概率、直接钉死内容：</p>
+
+<pre><code>_FACT_PATTERN = re.compile(r"#[\w-]+|\d+(?:[.,:/-]\d+)*%?")   # refiner.py:78</code></pre>
+
+<p>它抓的是订单号（<code>#A-1029</code>）、日期、版本、百分比、带千分位或小数点的数字。判定用的是<strong>字符区间重叠</strong>：token 的字符跨度只要和事实跨度有任何交叠，它的 <code>p(keep)</code> 就被写成 1.0——阈值在 [0,1] 内取任何值都删不掉它。</p>
+
+<p>第二把是 <code>&lt;tc_keep&gt;…&lt;/tc_keep&gt;</code>：客户自己标记「这段别动」的内容，语义与数字事实完全相同。有一条防滥用上限——受保护内容最多占输入的 50%，否则把整段 prompt 包起来就等于关掉压缩。</p>
+
+<div class="callout">
+  <span class="label">同一个正则，两处使用</span>
+  <p>评测 harness 里的 fact recall 用的是<strong>逐字复制</strong>的同一个正则（<code>src/leia/quality.py:33</code>）。两侧必须同时漂移，否则「运行时的安全性」和「考卷上的分数」就变成两把不同的尺子。</p>
+</div>
+
+<p>钉死不是万能的，两个已知破口写在代码注释里：<code>max_tokens</code> 是硬上限，截断时可能把尾部的受保护 token 一起切掉；分块路径（下一节）里，事实可能因为句子被重新拼接而匹配不上。安全网有洞，洞也被记录在案。</p>
+
+<div class="quiz" data-multi="true">
+  <p class="quiz-q">哪些内容<strong>不会</strong>被概率阈值删掉？（选出所有正确项）</p>
+  <button class="quiz-opt" data-correct="true" aria-pressed="false">命中正则的数字事实</button>
+  <button class="quiz-opt" data-correct="true" aria-pressed="false">保护标记包裹的内容</button>
+  <button class="quiz-opt" data-correct="true" aria-pressed="false">句首句尾的特殊标记</button>
+  <button class="quiz-opt" data-correct="false" aria-pressed="false">每个段落的首个实词</button>
+  <button class="quiz-check" type="button">检查</button>
+  <p class="quiz-fb"></p>
+</div>
+
+<h2><span class="num">06</span>超过 512 个 token：分块</h2>
+
+<p>BERT 的输入窗口是 512 个 token，这是硬限制。所以 <code>compress()</code> 先数一遍：装得下就一次前向，装不下就<strong>按句边界</strong>把文本打包成每块不超过 480 token 的块，逐块压缩，最后用单个空格把各块拼起来。</p>
+
+<ul>
+  <li><strong>阈值按块生效。</strong>每块各有一批自己的 token、自己的概率分布，于是每块的保留率各不相同。整篇的压缩率是各块的加权平均，不是一个统一决定的结果。</li>
+  <li><strong>块与块互不可见。</strong>第 3 块的模型看不到第 1 块。跨块的长距离依赖（「上文提到的那个订单」和它的编号）在压缩阶段就是断的——这是这套架构的真实代价，不是实现瑕疵。</li>
+  <li><strong>用空格 join，原始结构丢失。</strong>原文里的换行、缩进、消息边界，压缩后全部塌成单空格。对下游大模型通常无所谓，对依赖格式的 system prompt 可能不是。</li>
+</ul>
+
+<div class="quiz">
+  <p class="quiz-q">一篇 3000 token 的 RAG 文档送进压缩，会发生什么？</p>
+  <button class="quiz-opt" data-correct="true">按句边界切块，每块各自定阈值</button>
+  <button class="quiz-opt" data-correct="false">整篇一次前向，模型看全上下文</button>
+  <button class="quiz-opt" data-correct="false">直接硬截断掉最前面的那一部分</button>
+  <button class="quiz-opt" data-correct="false">拒绝压缩，把原文原样传给下游</button>
+  <p class="quiz-fb"></p>
+</div>
+
+<h2><span class="num">07</span>现场诊断：0.7699 是怎么来的</h2>
+
+<p>第 4 节留了一个悬念：事实明明被正则钉死，为什么 mBERT 的 fact recall 是 0.7699，而且五档一动不动？本课实测给出了一个非常具体的答案。</p>
+
+<p>看第 3 节里那条英文压缩输出：原文是 <code>12.5%</code>，压缩后是 <code>12. 5 %</code>。中文例句里也一样：<code>#A-1029</code> 变成 <code># A - 1029</code>。<strong>每个字符都活着，但字符串被空格拆开了。</strong></p>
+
+<p>而 fact recall 的判据是字符串包含：<code>fact_recall(item.prompt, result.refined_text)</code>，逐字判断 <code>"#A-1029" in 压缩文本</code>（<code>src/leia/runner.py:277</code>）。空格一插，逐字判定立刻失败——尽管一个字符都没丢。</p>
+
+<p class="note"><b>为什么偏偏是 mBERT？</b>WordPiece 的解码规则是：<code>##</code> 开头的片段粘到前一个 token 上，其他每个 token 前面补一个空格。<code>#</code>、<code>-</code>、<code>.</code>、<code>%</code> 在 WordPiece 里都是独立 token 且不以 <code>##</code> 开头，于是空格被挨个补进来。XLM-R 用的是 SentencePiece，解出来的就是 <code>#A-1029</code>、<code>12.5%</code>，一个字不差。</p>
+
+<p>这不是事后编的解释，它可以被算出来。冻结考卷的 149 条里，逐条统计「会被解码空格拆开的事实」占比：</p>
+
+<table>
+  <thead><tr><th>量</th><th class="num">数字</th><th>来源</th></tr></thead>
+  <tbody>
+    <tr><td>考卷里含 ASCII 标点的事实占比（逐条平均）</td><td class="num">22.79%</td><td>本机统计 <code>eval/golden/</code> 149 条</td></tr>
+    <tr><td>实测 fact recall 的缺口（1 − 0.7699）</td><td class="num">23.01%</td><td>冻结基线 <code>docs/evaluation.md</code></td></tr>
+    <tr><td>XLM-R-large 五档 fact recall</td><td class="num">1.0000</td><td>同上（SentencePiece 不插空格）</td></tr>
+  </tbody>
+</table>
+
+<p>22.79% 与 23.01%——两个来源完全独立的数字，量级吻合到小数点后一位。也就是说：<strong>mBERT 的 fact recall 缺口，很可能不是模型把事实弄丢了，而是解码把事实拆开了，考卷的比对方式没认出来。</strong></p>
+
+<div class="callout">
+  <span class="label">这是诊断，不是定论</span>
+  <p>要定案还差一步 harness 级复核：把比对前的空白归一化，或者改成按 token 生存率而不是字符串包含来测。这件事的结论会影响「哪些事实真的会丢」——值得单开一课，也值得在仓库里留一条记录。运行时的 guardrail 不受这个现象影响：它比的是 rewrite 之后的自然语言，不是 token 解码的产物。</p>
+</div>
+
+<p>顺带一个反向证据，同一次实测里抓到的：XLM-R 在 0.1 档把原文的 <code>driven mainly</code> 解成了 <code>drivenly</code>——<code>mainly</code> 被切成两片，<code>main</code> 被杀、<code>ly</code> 活着，解码时粘到了前一个词上。<strong>「输出是输入的子序列」这个保证活在 token 层面，不活在字符串层面。</strong>它可以拼出一个原文里根本不存在的词。这句话值一整课。</p>
+
+<h2><span class="num">08</span>模型的「口味」从哪来</h2>
+
+<p>到这里还剩最后一个问题：模型凭什么知道 <code>enterprise</code> 该留、<code>However</code> 该删？它不是被教会了「什么重要」这个概念，而是被教会了<strong>模仿一个教师模型的删改习惯</strong>。LLMLingua-2 的数据蒸馏管线，五步：</p>
+
+<ol class="steps">
+  <li><strong>切块。</strong>语料按 512 token 上限切开——和运行时的分块同源。</li>
+  <li><strong>教师压缩。</strong>用固定 prompt 让 GPT-4 级模型做<em>只删不改</em>的抽取式压缩（「只能删不重要的词、不许改词序、不许改词、不许缩写」）。</li>
+  <li><strong>滑窗模糊匹配。</strong>把教师输出里的词逐个对回原文，找出它保留了原文的哪些位置——得到逐词的 keep/drop 标签。这一步是启发式，必然有对不齐的地方。</li>
+  <li><strong>质控。</strong>丢掉波动最大的 5%（Variation Rate：教师输出了原文里找不到的词，疑似幻觉）和对齐最差的 10%（Alignment Gap：匹配器认不回来的标签）。</li>
+  <li><strong>微调。</strong>用这份标签数据集训练一个双向编码器 + 分类头——就是运行时的那个 checkpoint。</li>
+</ol>
+
+<p class="note">管线在本仓的实现：<code>src/leia/distill.py</code>（分块 <code>chunk_text</code>、匹配 <code>match_labels</code>、质控 <code>quality_control</code>），策略与红线见 <code>docs/data-strategy.md</code>。</p>
+
+<p>Leia 自己做的是第 2 步的替换：语料不照抄论文——公开语料打底，加上合成的 system prompt 与多轮对话（公开数据集对这两类覆盖不足），并且有两条硬红线：<strong>教师的训练集 MeetingBank 一律排除</strong>（混进来等于评测时背答案），<strong>客户 prompt 永远不进训练与评测</strong>。</p>
+
+<h2><span class="num">09</span>收尾：三句话</h2>
+
+<div class="rule-box">
+  <h3>记住这三句就够用</h3>
+  <ol>
+    <li><strong>概率 → 阈值 → 子序列。</strong>模型给每个 token 一个保留概率，低于档位的删掉，输出是输入的 token 子序列。</li>
+    <li><strong>档位是概率，不是比例。</strong>压缩率是结果，随文本和模型校准浮动；同档位才能比模型。</li>
+    <li><strong>事实与保护段被钉死，其余全看模型口味。</strong>剩下的缺口多半出在解码与分块这些非模型环节。</li>
+  </ol>
+</div>
+
+<h3>不看上文，写一遍</h3>
+<p>合上这一页之前，用自己的话把五步写下来。写不出第 4 步就回去看第 2 节——这种「努力想一下」的检索，比再读一遍记得牢得多。</p>
+
+<div class="recall" data-key="lesson-0001:five-steps">
+  <textarea placeholder="1. …&#10;2. …&#10;3. …&#10;4. …&#10;5. …"></textarea>
+  <div class="recall-bar"><button class="recall-btn" type="button">对照参考答案</button></div>
+  <div class="recall-answer">
+    <p>1. <strong>分词 + 取字符偏移</strong>（偏移留给事实定位用）；<br>
+       2. <strong>前向一次</strong>，得到每个 token 的两个 logits；<br>
+       3. <strong>softmax 取第 1 列</strong>，得到 <code>p(keep)</code>；<br>
+       4. <strong>三处强制 1.0</strong>：特殊 token、事实正则命中、<code>&lt;tc_keep&gt;</code> 保护段；<br>
+       5. <strong>与档位比较并解码</strong>：<code>p &gt;= aggressiveness</code> 的 token 拼回文本。</p>
+  </div>
+</div>
+
+<h3>想自己复现这份数据</h3>
+<p>仓库里带了一个 30 行的测量脚本，跑的是生产代码路径的同一套算法：</p>
+
+<pre><code># 需要 torch + transformers（.venv-train），离线可跑
+HF_HUB_OFFLINE=1 .venv-train/bin/python assets/repro/keep-probability-trace.py \
+  --model ../tokencamp-pro/sidecars/refine/models/models--microsoft--\
+llmlingua-2-bert-base-multilingual-cased-meetingbank/snapshots/&lt;rev&gt; \
+  --text "要测的文本" --levels 0.1 0.2 0.3 0.4 0.5</code></pre>
+
+<h3>主读物（一课一份）</h3>
+<p>读论文的 <strong>§3</strong>：数据蒸馏管线（3.1 数据生成 / 3.2 训练 / 3.3 质控）和把压缩形式化为 token 分类的那段论证。它给出本课所有机制的原始出处；本课没讲的部分（教师 prompt 的取舍、超参数、跨域泛化）也在那里。</p>
+<p>→ <a href="https://arxiv.org/abs/2403.12968">LLMLingua-2: Data Distillation for Efficient and Faithful Task-Agnostic Prompt Compression</a>（ACL 2024 Findings，arXiv:2403.12968）</p>
+
+<div class="ask-teacher">
+  <b>我是你的老师，随时打断我。</b>以下问题直接问，别客气：「为什么取 softmax 的第 1 列而不是第 0 列？」「怎么用命令行把某段真实 prompt 压一遍看看？」「0.7699 那个诊断，怎么在仓库里做成可复现的实验？」「下一课我想先学蒸馏的滑窗匹配。」——任何不清楚的地方都值得问，包括「这篇文章某句话我没看懂」。
+</div>
+
+<div class="docnav">
+  <p><strong>下一课候选</strong>（你选一个，或提你自己的）：</p>
+  <ul>
+    <li><span class="tag">诊断</span>把 0.7699 做成可复现的实验：空白归一化后，事实到底丢没丢？</li>
+    <li><span class="tag">算法</span>滑窗模糊匹配：对齐间隙是怎么产生的，为什么它决定标签质量</li>
+    <li><span class="tag">设计</span>v2 query-aware：只加数据形态、不动架构，为什么接入面却最难</li>
+  </ul>
+  <p style="margin-top:1rem">参考文档：<a href="../reference/glossary.html">术语表</a> · <a href="../reference/compress-pipeline.html">压缩管线速查</a> · 复现脚本 <code>assets/repro/keep-probability-trace.py</code></p>
+</div>
+
+</main>
+
+<script src="../assets/data/trace-zh.js"></script>
+<script src="../assets/threshold-sim.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+  ThresholdSim.mount(document.getElementById("sim-zh"), window.LEIA_TRACE_ZH, {
+    title: "生产 checkpoint 的真实前向 · 56 个 token",
+    initial: 0.2
+  });
+</script>
+</body>
+</html>

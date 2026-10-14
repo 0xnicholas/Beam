@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 02 课 · 怎么读我们的数字 — Leia 学习空间</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main class="lesson">
+
+<p class="eyebrow">Leia 学习空间 · 第 02 课 · 面向团队</p>
+<h1>怎么读我们的数字</h1>
+
+<p class="lede">Leia 报告里的每个数字都<em>带着口径</em>：谁数的、跟谁比、凭什么判。读错口径，同一份数据能得出相反的结论。这一课给你一副眼镜。</p>
+
+<p class="meta">
+  <span>约 15 分钟</span>
+  <span>全部数字来自冻结全量 <code>2026-09-12</code>（149 条考卷，双 checkpoint）</span>
+  <span>配套：<a href="../reference/metrics-checklist.html">读表五问</a> · <a href="0001-what-happens-when-compress-runs.html">第 01 课</a></span>
+</p>
+
+<h2><span class="num">01</span>先有尺，才有「更好」</h2>
+
+<p>这个项目从第一天就把顺序定死了：<strong>先造尺，再谈优劣</strong>。立项本身不需要门槛（已经说了做），但任何「微调后更好」的说法，必须落在同一把尺上才算数——没有尺，不许声称赢。</p>
+
+<p>这把尺由三样东西钉住，缺一样，数字就不可比：</p>
+
+<ul>
+  <li><strong>考卷</strong>：149 条冻结 golden（RAG 49 / system 50 / 对话 50），内容寻址 sha256 <code>fb728d6a5042…</code>。<em>冻结纪律</em>是「只许扩集重跑，不许改题」——考卷跟着学生改，验收就作废。</li>
+  <li><strong>钉子</strong>：作答模型 <code>deepseek/deepseek-v4-pro</code>、judge <code>zhipu/glm-5.1</code>、rubric v1（全文哈希进报告）、harness commit。换任何一根钉子，数字就换了一把尺。</li>
+  <li><strong>判据</strong>：任务级质量差值的 95% 置信区间下界不为负。<a href="#s04">第 4 节</a>专门讲它为什么长这样。</li>
+</ul>
+
+<h2><span class="num">02</span>同一个东西，两个数字</h2>
+
+<p>「压缩率 29%」这句话本身是不完整的。同一批压缩结果，报告里同时给出两个口径：</p>
+
+<table>
+  <thead><tr><th>口径</th><th>数什么</th><th class="num">档位 0.2</th><th>回答的问题</th></tr></thead>
+  <tbody>
+    <tr><td>计费口径</td><td>tiktoken <code>cl100k_base</code></td><td class="num">0.2948</td><td>客户账单会省多少</td></tr>
+    <tr><td>原生口径</td><td>模型自己的 tokenizer（WordPiece）</td><td class="num">0.3017</td><td>模型视野里删掉了多少</td></tr>
+  </tbody>
+</table>
+
+<p>两个数字差 0.7 个百分点——不算大，但足以让「提升了 0.5 个点」这种结论变成假结论。更麻烦的是：<strong>这个差值的方向会随模型翻转</strong>。同一个档位下，XLM-R-large 的计费口径是 0.2097、原生口径是 0.1941——原生比计费<em>还低</em>。换基底模型就换 tokenizer，换 tokenizer 就换两套数字的关系。</p>
+
+<p class="note"><b>第三条口径坑：</b>fact recall 是<strong>字符串逐字</strong>判定（<code>"#A-1029" in 压缩文本</code>）。而压缩输出的字符串会被解码重排——第 01 课实测过：WordPiece 把 <code>#A-1029</code> 解成 <code># A - 1029</code>。所以这个指标测的其实是「字符串相邻关系有没有被破坏」，不只是「事实有没有被删」。</p>
+
+<div class="quiz">
+  <p class="quiz-q">报告里同时出现 0.2948 与 0.3017 两个压缩率，原因是什么？</p>
+  <button class="quiz-opt" data-correct="true">两个计数口径是：计费与模型原生</button>
+  <button class="quiz-opt" data-correct="false">两次运行记录：一次来自快照预热</button>
+  <button class="quiz-opt" data-correct="false">有效位数不同：两份记录各自舍入</button>
+  <button class="quiz-opt" data-correct="false">一条统计了分块开销，另一条没有</button>
+  <p class="quiz-fb"></p>
+</div>
+
+<h2><span class="num">03</span>四个指标，各管一件事</h2>
+
+<table>
+  <thead><tr><th>指标</th><th>回答的问题</th><th>它怎么骗人</th></tr></thead>
+  <tbody>
+    <tr><td>压缩率</td><td>省了多少</td><td>省得多不等于答得对</td></tr>
+    <tr><td>fact recall</td><td>数字、编号活下来了吗</td><td>字符串级判定，会受解码空格影响</td></tr>
+    <tr><td>token F0.5</td><td>压缩后还像不像原文</td><td>保留得越多它越高，与任务质量无关</td></tr>
+    <tr><td><strong>任务级质量 delta</strong></td><td>下游答案变好还是变差</td><td>样本量小就会给出假区间（见第 4 节）</td></tr>
+  </tbody>
+</table>
+
+<p>前三个是<strong>代理指标</strong>——它们便宜、可自动化、不需要真跑下游任务；最后一个是<strong>主指标</strong>，也是唯一进验收判据的。为什么要这么分？看真实数据：</p>
+
+<table>
+  <thead><tr><th>档位</th><th class="num">压缩率 ↑</th><th class="num">fact recall</th><th class="num">token F0.5 ↓</th><th class="num">任务质量 delta [95% CI]</th></tr></thead>
+  <tbody>
+    <tr><td>0.1</td><td class="num">0.2203</td><td class="num">0.7699</td><td class="num">0.6965</td><td class="num">+0.0095 [−0.0140, +0.0345]</td></tr>
+    <tr><td>0.2</td><td class="num">0.2948</td><td class="num">0.7699</td><td class="num">0.6626</td><td class="num">+0.0009 [−0.0330, +0.0363]</td></tr>
+    <tr><td>0.3</td><td class="num">0.3590</td><td class="num">0.7699</td><td class="num">0.6393</td><td class="num">−0.0151 [−0.0507, +0.0209]</td></tr>
+    <tr><td>0.4</td><td class="num">0.4179</td><td class="num">0.7699</td><td class="num">0.6159</td><td class="num"><strong>−0.0670 [−0.1075, −0.0279]</strong></td></tr>
+    <tr><td>0.5</td><td class="num">0.4748</td><td class="num">0.7699</td><td class="num">0.5883</td><td class="num"><strong>−0.0729 [−0.1172, −0.0293]</strong></td></tr>
+  </tbody>
+</table>
+
+<p>从 0.3 走到 0.5：压缩率涨了 12 个百分点（好看），fact recall 一动不动（因为事实被正则钉死），token F0.5 一路下滑（像不像原文越来越差），而<strong>任务质量已经变成确定的负值</strong>——0.4 与 0.5 档的区间整段落在 0 以下。</p>
+
+<p class="note"><b>换个模型这条规律也一样。</b>XLM-R-large 的 token F0.5 漂亮得多（0.1 档 0.889 vs mBERT 0.6965），可它的任务质量同样没赢过原文（0.1 档 −0.0022，区间跨零）。代理指标好看，不等于任务更好——这正是 The Token Company 调研留下的教训，也是我们把任务级质量设成主判据的理由。</p>
+
+<div class="quiz">
+  <p class="quiz-q">0.4 档：压缩率还在涨、fact recall 不动、任务质量区间下界为负。该推荐哪个档位？</p>
+  <button class="quiz-opt" data-correct="false">推荐 0.4 档，压缩收益更大</button>
+  <button class="quiz-opt" data-correct="true">不推荐，任务级主指标已经掉分了</button>
+  <button class="quiz-opt" data-correct="false">推荐 0.5 档，收益更大一些</button>
+  <button class="quiz-opt" data-correct="false">先看事实召回，再决定推荐哪个档</button>
+  <p class="quiz-fb"></p>
+</div>
+
+<h2 id="s04"><span class="num">04</span>判据为什么长成「区间」的样子</h2>
+
+<p>先看这 149 条数据长什么样。下面是 0.2 档每条 prompt 的<strong>真实</strong>差值（压缩后的答案分 − 原文的答案分，judge 打分）：</p>
+
+<ul>
+  <li><strong>89 条完全没变</strong>（差值 = 0）——大多数时候压缩根本不影响答案；</li>
+  <li>剩下的 60 条里，有变好的，也有变差的，单条最大涨落到 ±1.0；</li>
+  <li>149 条算下来，平均差值只有 <strong>+0.0009</strong>——正负互相抵消，这就是为什么「平均值」这个数如此不可靠。</li>
+</ul>
+
+<p>把均值和区间一起看才有意义。下面这台机器用<strong>真实差值</strong>现场重采样：每次随机抽 149 条（允许重复），算一个均值，画进直方图。抽得越多，这个分布越清楚，两端 2.5% / 97.5% 分位就构成报告的置信区间。</p>
+
+<div class="sim" id="sim-boot"></div>
+
+<p>读法只有三条，值得背下来：</p>
+
+<ol>
+  <li><strong>区间跨过 0 = 看不出差别。</strong>0.1–0.3 档的区间都跨 0：不是「变好了」，也不是「变差了」，而是<em>和原文没有可分辨的差别</em>。</li>
+  <li><strong>区间整体在 0 以下 = 确实变差。</strong>0.4 档 [−0.1075, −0.0279]、0.5 档 [−0.1172, −0.0293] 都整个落在负半轴。这不是噪音，是代价。</li>
+  <li><strong>样本量决定分辨力。</strong>把样本量切成 45 条或 15 条再看：区间会明显变宽，判据随之失去区分能力——<em>平均值可能一样，结论的强度完全不同</em>。这也是为什么考卷规模是算出来的（按能分出预期效应量倒推），不是拍出来的。</li>
+</ol>
+
+<p class="note"><b>为什么是「配对」重采样？</b>抽的是<strong>同一条 prompt 的两个答案之差</strong>，从头到尾配对。原文与压缩后的答案来自同一道题、同一个模型，条目之间的差异（题目难度）在配对时被消掉了，剩下的才是压缩真正带来的变化。报告的 RNG 有固定种子（seed 0），所以数字可复现；上面的演示用的是另一套随机数，你会看到<em>略微不同</em>的区间——那正是「要认数字就得认出处」的理由。</p>
+
+<div class="quiz">
+  <p class="quiz-q">把考卷从 149 条缩到 15 条，判据会怎样？</p>
+  <button class="quiz-opt" data-correct="true">区间变宽，判据失去分辨力了</button>
+  <button class="quiz-opt" data-correct="false">均值变大，判据更容易通过了</button>
+  <button class="quiz-opt" data-correct="false">完全不变，因为判据只看均值</button>
+  <button class="quiz-opt" data-correct="false">区间变窄，判据更容易通过了</button>
+  <p class="quiz-fb"></p>
+</div>
+
+<div class="quiz">
+  <p class="quiz-q">报告写着均值 +0.0095、区间 [−0.0140, +0.0345]。可以对外说「质量略有提升」吗？</p>
+  <button class="quiz-opt" data-correct="false">可以，均值是正数就该这么说</button>
+  <button class="quiz-opt" data-correct="true">不可以，区间跨过了零这条线</button>
+  <button class="quiz-opt" data-correct="false">可以，一百四十九条已经够多</button>
+  <button class="quiz-opt" data-correct="false">不可以，均值离零还是很近的</button>
+  <p class="quiz-fb"></p>
+</div>
+
+<h2><span class="num">05</span>案例：一个数字如何骗人</h2>
+
+<p>第 01 课留下一个悬案：mBERT 的 fact recall 五档全部是 0.7699，而事实明明被正则钉死、阈值动不了它。这个案子的查法本身就是「读数字」的示范，四步：</p>
+
+<ol class="steps">
+  <li><strong>发现异常。</strong>不是「数字不好看」，而是「数字太好了」——一个应该随档位变化的量纹丝不动，说明它测的东西和以为的不一样。</li>
+  <li><strong>提出可证伪的假设。</strong>「缺口在压缩之后的环节」与「缺口在测量方式本身」，两者都能解释恒定；选后者，因为它能被一行代码验证。</li>
+  <li><strong>找独立证据。</strong>跑真实前向：<code>#A-1029</code> 解出来是 <code># A - 1029</code>、<code>12.5%</code> 解出来是 <code>12. 5 %</code>——字符都在，字符串被空格拆开。而判据是字符串包含。</li>
+  <li><strong>定量预测并验证。</strong>如果假设成立，缺口 ≈ 考卷里「带 ASCII 标点的事实」占比。实测 22.79%，缺口 23.01%。</li>
+</ol>
+
+<div class="callout">
+  <span class="label">这一步还没做</span>
+  <p>这个案子目前<strong>只是诊断，没有定案</strong>。还差一次 harness 级复核：把比对前的空白归一化，看事实召回率会不会一步跳到接近 1.0。没做之前，任何「我们的模型丢事实」或「考卷测不准」的说法都只是猜想——这正是本课想教的纪律：<strong>异常要说出来，结论要标上限</strong>。</p>
+</div>
+
+<h2><span class="num">06</span>读表五问</h2>
+
+<p>任何一张 Leia 的数字表拿到手，先问这五句。答不上来就别引用：</p>
+
+<div class="rule-box">
+  <ol>
+    <li><strong>这是哪个口径？</strong>计费还是原生？字符串级还是 token 级？</li>
+    <li><strong>钉子是什么？</strong>作答模型、judge、rubric 版本、harness commit、考卷哈希——有没有和你要比的那份报告一致？</li>
+    <li><strong>跟谁比、同档位吗？</strong>压缩率是结果不是设定值，不同档位的数字没有可比性。</li>
+    <li><strong>是代理指标还是主指标？</strong>代理指标用来做日常回归，声称优劣只看任务级质量。</li>
+    <li><strong>区间下界多少、样本量多少？</strong>均值不带区间就不能上桌。</li>
+  </ol>
+  <p>打印版在 <a href="../reference/metrics-checklist.html">读表五问</a>，与这份课文同源。</p>
+</div>
+
+<h2><span class="num">07</span>收尾：三句话</h2>
+
+<div class="rule-box">
+  <h3>记住这三句就够用</h3>
+  <ol>
+    <li><strong>先问口径，再看数字。</strong>同一个压缩率有两个值，方向还会随模型翻转。</li>
+    <li><strong>代理指标会背离主指标。</strong>压缩率在涨、token F0.5 漂亮，任务质量也可能确定地掉。</li>
+    <li><strong>均值不带区间就不能上桌。</strong>判据是区间下界，样本量决定这个判据有没有分辨力。</li>
+  </ol>
+</div>
+
+<h3>不看上文，写一遍</h3>
+<p>用你自己的话说明：为什么 0.4 档「不值得推荐」，而你手里有哪三个数字能支撑这个说法？</p>
+
+<div class="recall" data-key="lesson-0002:why-not-04">
+  <textarea placeholder="1. …&#10;2. …&#10;3. …"></textarea>
+  <div class="recall-bar"><button class="recall-btn" type="button">对照参考答案</button></div>
+  <div class="recall-answer">
+    <p>1. <strong>任务质量区间整段在 0 以下</strong>——0.4 档 [−0.1075, −0.0279]，主指标确定变差，不是噪音；<br>
+       2. <strong>压缩率的上涨是代理指标的上涨</strong>——0.3590 → 0.4179 只说明省得更多，不说明答得更好；<br>
+       3. <strong>fact recall 恒定 0.7699 不能当挡箭牌</strong>——它被正则钉死，对档位不敏感，根本不参与这个判断。</p>
+  </div>
+</div>
+
+<h3>主读物（一课一份）</h3>
+<p>本课所有数字与判据的权威出处，是仓库里这两份文档（比任何转述都可靠）：</p>
+<ul>
+  <li><code>docs/evaluation.md</code> — 验收尺：指标口径、冻结纪律、双 checkpoint 基线数字；</li>
+  <li><code>docs/baselines/2026-09-12-stage1-exit.md</code> — 阶段 1 退场评审：这批判据当时是怎么被逐条核对通过的。</li>
+</ul>
+<p>对照阅读（外部口径分析）：<code>docs/research/bear.md</code> —— 竞品数字为什么不能直接比。</p>
+
+<div class="ask-teacher">
+  <b>我是你的老师，随时打断我。</b>这一课最值得追问的三句话：「配对重采样为什么能消掉题目难度？」「怎么在报告里一眼看出钉子换过没有？」「如果我要给团队讲五分钟，选哪三个数字？」——任何不清楚的地方都可以直接问，包括「这句我没看懂」。
+</div>
+
+<div class="docnav">
+  <p><strong>下一课候选</strong>：① 数据从哪来、红线在哪（蒸馏管线 + 语料许可）；② 交付与接入：产物包、drop-in 契约、供货关系；③ 把 0.7699 的诊断做成可复现实验。</p>
+  <p style="margin-top:1rem">参考：<a href="index.html">课程目录</a> · <a href="../reference/metrics-checklist.html">读表五问</a> · <a href="../reference/glossary.html">术语表</a> · <a href="0001-what-happens-when-compress-runs.html">第 01 课 · 一次压缩调用里发生了什么</a></p>
+</div>
+
+</main>
+
+<script src="../assets/data/quality-deltas.js"></script>
+<script src="../assets/bootstrap-sim.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+  BootstrapSim.mount(document.getElementById("sim-boot"), window.LEIA_DELTAS, {
+    checkpoint: "mbert",
+    level: 0.2
+  });
+</script>
+</body>
+</html>

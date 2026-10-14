@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>读表五问 — Leia 学习空间</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main class="doc">
+
+<p class="eyebrow">Leia 学习空间 · 参考</p>
+<h1>读表五问</h1>
+<p class="lede">拿到任何一张 Leia 的数字表，先问这五句。五句都答得上来，数字才能被引用。</p>
+<p class="meta"><span>配套课文：<a href="../lessons/0002-reading-our-numbers.html">第 02 课 · 怎么读我们的数字</a></span></p>
+
+<h2><span class="num">1</span>五问</h2>
+
+<div class="rule-box">
+  <ol>
+    <li><strong>口径。</strong>计费（tiktoken <code>cl100k_base</code>）还是模型原生（WordPiece / SentencePiece）？字符串级还是 token 级？——同一个压缩率有两个值，方向还可能随底座翻转。</li>
+    <li><strong>钉子。</strong>作答模型、judge 模型、rubric 版本与哈希、harness commit、考卷哈希、bootstrap 种子——和你要比的那份报告是否一致？换一根钉子就是换了一把尺。</li>
+    <li><strong>对照与档位。</strong>跟谁比？是不是同一档 aggressiveness？压缩率是结果不是设定值，跨档位的数字不可比。</li>
+    <li><strong>指标层级。</strong>代理指标（压缩率 / fact recall / token F0.5）还是主指标（任务级质量 delta）？优劣声称只认主指标。</li>
+    <li><strong>区间与样本量。</strong>均值必须带 95% 区间；样本量决定这个区间有没有分辨力（149 条 vs 45 条 vs 15 条，差别巨大）。</li>
+  </ol>
+</div>
+
+<h2><span class="num">2</span>四个指标的定义</h2>
+
+<table>
+  <thead><tr><th>指标</th><th>口径</th><th>回答的问题</th><th>已知陷阱</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>压缩率</td>
+      <td><code>1 − 保留率</code>；计费与原生双计</td>
+      <td>账单会省多少 / 模型删了多少</td>
+      <td>两个口径从不相等；方向随 tokenizer 翻转（mBERT 原生 &gt; 计费，XLM-R 原生 &lt; 计费）</td>
+    </tr>
+    <tr>
+      <td>fact recall</td>
+      <td>原文事实在压缩文本中<strong>逐字</strong>存活的比例（字符串包含）</td>
+      <td>数字、编号、百分比还在不在</td>
+      <td>受解码空格影响：<code>#A-1029</code> → <code># A - 1029</code> 会被记为丢失（第 01 课诊断）</td>
+    </tr>
+    <tr>
+      <td>token F0.5</td>
+      <td>token 级对齐，β²=0.25（精确率权重 ×2）；harness 用恒等对齐，运行时用 embedding 余弦</td>
+      <td>压缩结果还像不像原文</td>
+      <td>保留越多它越高，与任务质量无关（XLM-R 0.889 也没赢）</td>
+    </tr>
+    <tr>
+      <td>任务级质量 delta</td>
+      <td>同一 prompt 原文与压缩后各答一次，judge 按 key_points 打分之差</td>
+      <td>下游答案变好还是变差</td>
+      <td>样本量小会给出假区间；judge 与 rubric 必须钉死</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2><span class="num">3</span>判据与冻结身份（引用时抄这一栏）</h2>
+
+<table>
+  <thead><tr><th>项</th><th>值</th></tr></thead>
+  <tbody>
+    <tr><td>判据</td><td>任务级质量 delta 的 95% CI <strong>下界不为负</strong>（v1 验收另加：压缩率或 fact recall 有一项显著提升）</td></tr>
+    <tr><td>bootstrap 口径</td><td>按 prompt 配对重采样，10000 次，种子 0，百分位法（线性插值），95%</td></tr>
+    <tr><td>考卷</td><td>149 条冻结 golden（RAG 49 / system 50 / dialogue 50），sha256 <code>fb728d6a5042…</code></td></tr>
+    <tr><td>作答 / judge</td><td><code>deepseek/deepseek-v4-pro</code> / <code>zhipu/glm-5.1</code>；rubric v1（哈希 <code>f48af57b1a80…</code>）</td></tr>
+    <tr><td>冻结全量</td><td><code>runs/20260912T130801677178Z-full149-mbert-base-c0d7b21c/</code> 与 <code>…-xlmr-large-7c8d022a/</code></td></tr>
+  </tbody>
+</table>
+
+<h2><span class="num">4</span>常见误读（都是真实发生过的）</h2>
+
+<ul>
+  <li>「压缩率 47.5%，比公开模型高」——如果不同档位，这两句话没有可比性；档位是阈值，不是比例。</li>
+  <li>「均值 +0.0095，略有提升」——区间跨零时说「提升」是过度解读，正确说法是「无可分辨差别」。</li>
+  <li>「fact recall 0.7699，说明模型会丢事实」——它说明<strong>测量方式</strong>会记丢；事实每个字符都在（诊断见第 01 课，定案待复核）。</li>
+  <li>「token F0.5 高了，质量更好」——这是代理指标，两个底座上它差异很大而任务质量差异不大。</li>
+  <li>「把这批数字和旧 benchmark 的 60 条比一比」——考卷、钉子、口径全变了，只有一个共同点：都不该混用。</li>
+</ul>
+
+<div class="docnav">
+  <p>配套：<a href="glossary.html">术语表</a> · <a href="compress-pipeline.html">压缩管线速查</a> · <a href="../lessons/index.html">课程目录</a></p>
+</div>
+
+</main>
+</body>
+</html>

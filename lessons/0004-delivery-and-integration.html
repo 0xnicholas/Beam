@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 04 课 · 交付与接入 — Leia 学习空间</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main class="lesson">
+
+<p class="eyebrow">Leia 学习空间 · 第 04 课 · 面向团队</p>
+<h1>交付与接入：换一个权重，换回来也是一个动作</h1>
+
+<p class="lede">前三课回答「它凭什么值得信」。这一课回答团队真正会问的那句：<em>这东西怎么到我手上，装上去会发生什么，装错了怎么退回来。</em></p>
+
+<p class="meta">
+  <span>约 15 分钟</span>
+  <span>宿主坐标复核于 2026-10-14（tokencamp-pro HEAD <code>6b03be5</code>）</span>
+  <span>配套：<a href="../reference/delivery-contract.html">交付速查</a> · <a href="../reference/glossary.html">术语表</a> · <a href="index.html">课程目录</a></span>
+</p>
+
+<h2><span class="num">01</span>替换的实质：只换一个权重文件</h2>
+
+<p>refine 是两段式：先 <strong>compress</strong>（抽取式删词，我们的 checkpoint，2–3 毫秒），再 <strong>rewrite</strong>（网关大模型回调）。「Leia 完成后能替换 refine 吗」这句话里的「替换」，指的只是第一段。<strong>换 compress 阶段的 checkpoint 权重</strong>——没有别的含义。</p>
+
+<p>这不是口头约定，是接口形状决定的。宿主里加载压缩模型的地方只有一处：</p>
+
+<pre><code># sidecars/refine/compressor.py:16
+MODEL_ID = os.environ.get(
+    "COMPRESSION_MODEL_ID",
+    "microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank",
+)</code></pre>
+
+<p>整个 <code>Compressor</code> 的构造就三件事：拿 <code>MODEL_ID</code> 加载 tokenizer 与 token 分类模型、记下自己的身份标签、放到设备上。谁被加载，由这一个常量决定。</p>
+
+<div class="rule-box">
+  <h3>换权重时<strong>不动</strong>的四样东西</h3>
+  <ol>
+    <li><strong>rewrite 阶段</strong>（网关 LLM 回调与它的两道 guardrail）——原样；</li>
+    <li><strong><code>/refine</code> 协议</strong>与 <code>x-tc-refine*</code> 请求头语义——原样；</li>
+    <li><strong>fail-open</strong>（任何一环出问题就放行原文，绝不阻断请求）与 light mode——原样；</li>
+    <li><strong>缓存、超时、隐私边界</strong>——原样。</li>
+  </ol>
+</div>
+
+<p class="note"><b>收益与风险同边界。</b>宿主 <code>RefineTier</code> 的默认值是 <code>Off</code>（<code>settings.rs:77-80</code>，<code>transform.rs:241</code> 直接 return）。压缩默认就是关着的：只有显式启用 <code>rewrite_compress</code> 档的工作区会走到我们的模型。所以换权重的价值上限 = 这批工作区的节省；换了之后出问题，影响面也正好是同一批。</p>
+
+<p>这句话值得记住，因为它同时定了两件事：<strong>验收要对准的那批流量</strong>，和<strong>出事时的爆炸半径</strong>。二者是同一批。</p>
+
+<h2><span class="num">02</span>产物包五件：缺一不算交付</h2>
+
+<p>交付单元不是「一个模型文件」，是<strong>产物包</strong>。五件里少任何一件，都不叫交付——因为剩下四件都答不了收件人的问题。</p>
+
+<table>
+  <thead><tr><th>件</th><th>回答的问题</th><th>怎么来的</th></tr></thead>
+  <tbody>
+    <tr><td>checkpoint</td><td>跑的是什么东西</td><td>训练产物，须过 <code>delivery verify</code></td></tr>
+    <tr><td>溯源 model card</td><td>数据从哪来、许可干不干净</td><td>手写 + 冻结 manifest 锚定（第三课）</td></tr>
+    <tr><td>对照报告</td><td>凭什么说更好</td><td>冻结考卷 149 条上的验收数字</td></tr>
+    <tr><td>延迟档案</td><td>会不会拖慢线上</td><td>阶段 1 双基线顺带产出；延迟闸 p95 ≤ 现网 1.2×</td></tr>
+    <tr><td>接入包</td><td>我具体要改哪儿、怎么退</td><td><code>leia delivery pack</code> 从草案渲染</td></tr>
+  </tbody>
+</table>
+
+<p>第五件是 2026-09-11 补上的，理由是前四件合起来仍然只说明「这东西不错」，没说明「你怎么用上它」——而团队实际卡住的往往是后者。接入包不是说明书，它是<strong>让宿主照做即可接入的单元</strong>：契约校验清单 + 宿主改动 patch + 切换/观察/回滚 runbook + 非差异清单（明确列出「切换后不变的东西」，省掉收件人自己推演）。</p>
+
+<h2><span class="num">03</span>drop-in 契约：四条，每条对着宿主的一行代码</h2>
+
+<p>「能替换」不是形容词，是四条可执行的硬条件。<strong>任何一条不满足，就不是替换权重，而是要宿主改代码</strong>——那件事的性质完全不同（跨仓、要排期、要说服）。</p>
+
+<table>
+  <thead><tr><th>条件</th><th>宿主哪里依赖它</th><th>不满足的后果</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>architectures</code> 含 <code>BertForTokenClassification</code>，<code>num_labels == 2</code>，<code>id2label</code> = {0: drop, 1: keep}</td>
+      <td>宿主把 <code>softmax(logits)[..., 1]</code> 当保留概率——<strong>位置语义</strong>，不是按名字找</td>
+      <td>写反了会<strong>静默反向</strong>：能加载、不报错、压缩照跑，只是留下该删的</td>
+    </tr>
+    <tr>
+      <td>tokenizer 必须是 <strong>fast</strong>（<code>return_offsets_mapping</code> 可用）</td>
+      <td>强制保留（force-keep）靠 offsets 把数字事实的字符区间映射到 token</td>
+      <td>没有 offsets，事实保护直接失效——而这正是现网最在意的那类丢失</td>
+    </tr>
+    <tr>
+      <td>模型类暴露 <code>.bert</code> 属性</td>
+      <td><code>refiner.py:338</code> 的相似度 guardrail 直接调 <code>self.compressor.model.bert(**inputs)</code></td>
+      <td>属性名不对就抛异常，请求回落到原文：<strong>不报错，但也白干</strong></td>
+    </tr>
+    <tr>
+      <td>与现网同架构基底（mBERT-base 系列）</td>
+      <td>延迟档案与内存占用要能直接对比</td>
+      <td>延迟闸失去可比性——「慢了 1.2 倍」这句话就不再成立</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>前三条是<strong>运行时硬条件</strong>：不满足，host 要么跑不起来，要么跑错。第四条不是运行时条件，而是<strong>让「延迟可比」成立的前提</strong>——它的作用是保住延迟闸。分清楚这个差别，遇到「换个更大的底座行不行」时就知道该吵哪一条。</p>
+
+<div class="callout">
+  <span class="label">真实的反例</span>
+  <p>XLM-R-large 在公开基线上压缩更保守、fact recall 全档 1.0000——看上去是个更好的模型。它<strong>不是</strong> drop-in：属性叫 <code>.roberta</code>，第三条不满足。后果很硬：阶段 1 的「后手牌」激活判据据此修订，这个升级点没被激活（另有延迟 p95 17.8–25.8 s 的账）。<strong>接入面能一票否决一个更好的模型</strong>——这就是为什么契约要写在最前面。</p>
+</div>
+
+<div class="quiz">
+  <p class="quiz-q">XLM-R-large 为什么不算 drop-in？</p>
+  <button class="quiz-opt" data-correct="true">它的模型类缺少编码器属性</button>
+  <button class="quiz-opt" data-correct="false">它的分词器不是快速分词器</button>
+  <button class="quiz-opt" data-correct="false">它的压缩延迟超出了闸门口</button>
+  <button class="quiz-opt" data-correct="false">它的分类头输出三个标签位</button>
+  <p class="quiz-fb"><strong>是属性名。</strong>延迟是它没被激活的另一笔账，不是 drop-in 契约的那一条——两条理由别混着说。</p>
+</div>
+
+<h2><span class="num">04</span>契约是可执行的门：两层、三种判定</h2>
+
+<p>清单写在文档里就只是清单；变成命令才是门。本仓的 <code>leia delivery verify &lt;checkpoint 目录&gt;</code> 把四条拆成七个检查，分两层跑：</p>
+
+<ul>
+  <li><strong>静态层（5 项，默认依赖即可）。</strong>读 <code>config.json</code> 判架构类、标签数、标签语义；读 <code>tokenizer.json</code> 判是不是 fast、能不能给出可用的 offsets。不装 torch 也能跑。</li>
+  <li><strong>加载层（2 项，需要重依赖）。</strong>真的 <code>from_pretrained</code> 实例化一遍，断言模型确实有 <code>.bert</code>、运行时 tokenizer 确实给得出 offsets。装依赖：<code>uv sync --group load</code>。</li>
+</ul>
+
+<p>判定有<strong>三种</strong>，不是两种：<code>PASS</code> / <code>VIOLATION</code> / <code>UNVERIFIED</code>。<strong>UNVERIFIED 永远不算 PASS</strong>——它只说实话「这次没证明」。这个区分不是洁癖：交付记录里必须能指出<em>哪一次</em>是双层 PASS，否则「验过了」就是一句空话。</p>
+
+<pre><code>$ leia delivery verify runs/train/pilot-v1/checkpoint
+checkpoint: runs/train/pilot-v1/checkpoint (digest 8c35908db52f…, 6 files)
+static layer: PASS (5/5 checks)
+  architecture_class: PASS — architectures = ['BertForTokenClassification']
+  num_labels: PASS — num_labels = 2 (id2label has 2 entries)
+  id2label_semantics: PASS — id2label = {0: 'drop', 1: 'keep'}
+  fast_tokenizer: PASS — tokenizer.json loads with the fast-tokenizer library
+  offsets_available: PASS — probe encodes to 12 tokens, 12 non-degenerate offset spans
+load layer: UNVERIFIED — transformers/torch not installed — enable with `uv sync --group load`
+overall: PASS</code></pre>
+
+<p class="note">上面是<strong>今天</strong>在这台机器、默认虚拟环境里的真实输出：静态层 5/5，加载层因为没装 torch 而 <code>UNVERIFIED</code>。换到装了 torch 的环境跑同一份 checkpoint，加载层变成 <code>PASS</code> 并多出两行（<code>is_fast=True, 14 offset spans</code>；<code>model type BertForTokenClassification exposes `.bert`</code>）。<strong>同一份产物、同一份代码，判定不同</strong>——差别只在环境。这就是为什么交付时要把报告冻在归档里。</p>
+
+<p>下面这台机器让你亲手弄坏一处，看判定怎么动。开关是编的，它们代表的导出失误是真的：</p>
+
+<div class="sim" id="sim-verify"></div>
+
+<p class="note">报告的另一个性质是<strong>确定性</strong>：序列化时键排序、不写时间戳，同一份 checkpoint 在任何机器上验出同一串字节（加载层那一栏除外，它取决于环境）。审计「这份产物和上次那份是不是同一份」时，比的是这个 digest，不是文件夹名。</p>
+
+<h2><span class="num">05</span>接入包：让宿主照做即可</h2>
+
+<p>第五件产物由 <code>leia delivery pack</code> 生成，输出三件东西：</p>
+
+<table>
+  <thead><tr><th>文件</th><th>内容</th></tr></thead>
+  <tbody>
+    <tr><td><code>SHA256SUMS</code></td><td>逐文件哈希，<code>shasum -a 256 -c</code> 可直接校验——快照落盘后的第一件事</td></tr>
+    <tr><td><code>integration-pack.md</code></td><td>由仓内草案 <code>docs/delivery/refine-integration.md</code> <strong>渲染</strong>而成：占位符换成真实值，零手工填入</td></tr>
+    <tr><td><code>verify-report.json</code></td><td>打包那一刻的机读校验报告</td></tr>
+  </tbody>
+</table>
+
+<div class="rule-box">
+  <h3>pack 的三条不可谈判性质</h3>
+  <ol>
+    <li><strong>verify 不过就不许打包。</strong>门在打包之前，不在之后——一个违反契约的 checkpoint 连产物包都出不来。</li>
+    <li><strong>不覆盖已存在的输出目录。</strong>pack 是不可变产物；重打必须换新路径。</li>
+    <li><strong>确定性 + 拒绝半渲染。</strong>草案里出现渲染器认不出的占位符，直接中止报错，绝不允许一个 <code>{{…}}</code> 漏进定稿。</li>
+  </ol>
+</div>
+
+<p>第 3 条值得多看一眼：如果接入包里留着没替换的占位符，宿主会照着 <code>{{MODEL_TAG}}</code> 去改代码——这种错一定要在源头炸掉，而不是留给人眼在评审时发现。</p>
+
+<p>还有一个渲染细节值得先知道：<code>MODEL_ID</code> 取 <code>config.json</code> 的 <code>_name_or_path</code>，<strong>缺该字段就退回目录名</strong>；<code>MODEL_TAG</code> 再取它的 basename。也就是说<strong>暂存目录名会被直接写进 patch 与宿主的指标标签</strong>。2026-10-14 实测：pilot 产物正好缺这个字段，渲染出的标签是 <code>checkpoint</code>，注入路径会变成 <code>models/checkpoint</code>。交付前把暂存目录命名为 <code>leia-v1</code>，或在导出时写入 <code>_name_or_path</code>。</p>
+
+<p><strong>传输与回滚素材是一件事。</strong>走私有 HF 仓下载到目标机，落成<strong>本地快照</strong> + 逐文件哈希清单；此后运行时不再依赖 HF 的可达性与凭据。<strong>旧快照目录原地不删</strong>——它本身就是回滚素材。断网能启动、旧版本还在，这两条一起构成了「回滚是个动作，不是一个项目」。</p>
+
+<h2><span class="num">06</span>供货：触发式，不是一次性</h2>
+
+<p>Leia 与 refine 的关系定位是<strong>供货</strong>：交付自包含的产物（权重快照），既不是代码依赖，也不是一个服务。既然是供货，就要说清「什么时候再供一次」——四个触发器，<strong>无触发不交付</strong>：</p>
+
+<ol class="steps">
+  <li><strong>真链路回归跌破验收线。</strong>换权重或影响压缩面的改动之后，必须跑真链路全量（149 条 ≈ 600 次网关调用），结果摘录入本仓归档。</li>
+  <li><strong>负载分布漂移。</strong>操作化为 golden 主动扩集 + 线上聚合指标（节省率 / fallback / 延迟）的漂移告警。注意措辞：<strong>这些是代理信号，不声称测质量</strong>——客户 prompt 不能用于评测（第三课的红线二）。</li>
+  <li><strong>训练语料的许可发生变化。</strong>许可链断了，产物就不能再供。</li>
+  <li><strong>v2（query-aware）作为独立能力线立项。</strong>它换的不只是权重，还有接口，属于另一次交付。</li>
+</ol>
+
+<p>还有一条容易被忽略但很重要的性质：<strong>断供不等于断服务</strong>。产物自包含（本地快照 + 旧模型并存，<code>from_pretrained(本地路径)</code> 离线可跑），所以 <em>Leia 项目停下来，不影响 refine 的运行与回滚</em>。这正是「交付物供货」优于「代码依赖」的地方——依赖会腐烂，快照不会。</p>
+
+<div class="quiz" data-multi="true">
+  <p class="quiz-q">哪些属于「再交付」的触发器？（选出所有正确项）</p>
+  <button class="quiz-opt" data-correct="true">真链路回归跌破了验收线</button>
+  <button class="quiz-opt" data-correct="true">线上聚合指标出现了漂移</button>
+  <button class="quiz-opt" data-correct="true">训练语料许可发生了变化</button>
+  <button class="quiz-opt" data-correct="false">宿主想每季度收到新权重</button>
+  <button class="quiz-check">检查</button>
+  <p class="quiz-fb"><strong>没有日历这一条。</strong>供货由触发驱动，不由节奏驱动——「无触发不交付」正是为了避免为了交付而交付。</p>
+</div>
+
+<h2><span class="num">07</span>切换与回滚：一条八步的 runbook</h2>
+
+<p>切换手册的价值在于<strong>把「看起来生效了」和「确实生效了」分开</strong>。压缩默认关闭、fail-open 又会把故障都吞掉，所以「没报错」什么都证明不了。步骤顺序就是为此排的：</p>
+
+<ol class="steps">
+  <li><strong>落盘快照并校验哈希。</strong>同时跑 <code>leia delivery verify</code> 过契约。</li>
+  <li><strong>打接入包里的 patch。</strong>改动被刻意限制在很少的几处，其余文件一行不动。</li>
+  <li><strong>冷启动 sidecar</strong>，然后 <code>GET /health</code>。<code>{"status":"ok","compressor":true}</code> 才继续；<code>false</code> 意味着 light mode（只有 rewrite 在跑），<strong>停下来查</strong>。</li>
+  <li><strong>stub 冒烟。</strong>本仓的 fixture 配置，零网络零花费，验的是接线不是质量。</li>
+  <li><strong>真链路回归。</strong>冻结考卷全量，走宿主网关账本——这是唯一能回答「质量掉没掉」的一步。</li>
+  <li><strong>核判据，再切换。</strong>判据是：任务级质量 delta 的 95% 置信区间下界 ≥ 0，<em>且</em>压缩率或 fact recall 有一项显著提升。<strong>持平 = 不替换</strong>——负结果归档，refine 继续用公开 checkpoint。</li>
+  <li><strong>观察。</strong>applied / fallback / skipped 计数 + 按压缩机标签分组的 token 节省指标。</li>
+  <li><strong>回滚 = <code>git revert</code> + 重启。</strong>旧快照还在原地。</li>
+</ol>
+
+<p class="note"><b>回滚不残留脏缓存。</b>因为缓存键里含压缩机身份：换过权重之后，旧模型算出来的条目 key 不一样，<strong>自然失效</strong>。这不是巧合——它原本是一个真实的坑（键里不含压缩模型时，换完权重旧结果会静默继续命中，看起来切了、实际没切），现在被堵死了。</p>
+
+<div class="quiz">
+  <p class="quiz-q">真链路回归跑完，质量 delta 的 CI 下界恰好是 0，压缩率也没提升。怎么办？</p>
+  <button class="quiz-opt" data-correct="true">不替换，把负结果归档留存</button>
+  <button class="quiz-opt" data-correct="false">先替换，再盯线上指标观察</button>
+  <button class="quiz-opt" data-correct="false">放宽判据，改成均值不为负</button>
+  <button class="quiz-opt" data-correct="false">重训一轮，直到数字变好看</button>
+  <p class="quiz-fb"><strong>持平即停。</strong>判据里「下界 ≥ 0 且有一项显著提升」是一个合取——只满足前半句是没赢。改判据是最危险的那个选项：考卷跟着学生改，验收就作废了。</p>
+</div>
+
+<h2><span class="num">08</span>现状：宿主已经把接入面做出来了（2026-10-14）</h2>
+
+<p>前三课讲的是机制，这一节是<strong>唯一一节直接对着宿主仓库讲的</strong>——因为这一课的结论会过期，必须标注日期。截至今天，情况比 2026-09-11 的侦察结论要好：<strong>宿主已经把接入面大半做完了。</strong></p>
+
+<table>
+  <thead><tr><th>当初设想</th><th>宿主现状（HEAD <code>6b03be5</code>）</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>缓存键要加上压缩模型身份，否则换权重后旧结果静默继续命中</td>
+      <td><strong>已做。</strong><code>refine_cache.py:12-22</code> 的第九个参数就是压缩机标签；注释直说「checkpoint swap 因此永远不会命中上一个模型的结果」</td>
+    </tr>
+    <tr>
+      <td>网关要把 token 计数接出来，才能算节省</td>
+      <td><strong>已做且更完整。</strong><code>refine.rs:200-216</code> 的每个结果都带 <code>original_tokens</code> / <code>refined_tokens</code> / <code>compressor_model</code>；指标 <code>refine_tokens_total</code> 按 <code>direction</code> 与 <code>compressor</code> 两个标签分组——<strong>新旧权重的前后对比是现成的</strong></td>
+    </tr>
+    <tr>
+      <td>加载路径要能指向本地快照</td>
+      <td><strong>有缝了，但不是部署路径。</strong><code>compressor.py:16</code> 读环境变量 <code>COMPRESSION_MODEL_ID</code>，但代码注释写明它<em>只为 leia 的评测基线而存在、在任何部署里都不设</em>。产出切换仍然落在把 <code>MODEL_ID</code> 的默认值指到快照目录那一行</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>换句话说：上面三条里，最危险的那条（换权重后静默命中旧结果）和观测那条都已经在宿主里了，<strong>我们不需要再提改造请求</strong>。这不是我们推着宿主改的，是宿主在 2026-09-12 那一批提交里自己补的——但结论一样：接入面不再是瓶颈。</p>
+
+<p>还有一个已经发生的事实：<strong>我们自己的产物已经跑过宿主的真实加载路径。</strong>pilot 微调 checkpoint 经 <code>COMPRESSION_MODEL_ID</code> 指向本产物、零额外宿主改动，在真实 sidecar 里加载并压缩，完成了 149 条冒烟。<code>runs/20260913T110118217217Z-smoke149-pilot-plumbing-252d69d3/</code> 里的 <code>PLUMBING-ONLY.md</code> 是这件事的边界声明，读的时候请一起读——那批数字<strong>只证明接线通了</strong>，不构成任何质量声称。</p>
+
+<div class="callout">
+  <span class="label">还没做的（诚实清单）</span>
+  <p><strong>① 五件里只有第一件有实物。</strong><code>delivery pack</code> 尚未针对交付跑过；model card、对照报告、延迟档案都要等阶段 3 的验收训练。<strong>② 部署切换还没发生。</strong>生产默认仍指向公开 checkpoint。<strong>③ 文档已同步，规则不变。</strong>本仓 <code>docs/delivery/refine-integration.md</code> 与 <code>docs/decisions.md</code> §6 已在 2026-10-14 按宿主 HEAD 复核并修正（行号、runbook 的 <strong>149 条</strong>、「宿主改造集」三处已落地的现状）。但这条同步会再次过期——所以本课与<a href="../reference/delivery-contract.html">交付速查</a>一律<strong>先给符号、再给行号</strong>：符号是稳的，行号会动。</p>
+</div>
+
+<h2><span class="num">09</span>收尾：三句话</h2>
+
+<div class="rule-box">
+  <h3>记住这三句就够用</h3>
+  <ol>
+    <li><strong>替换 = 只换 compress 阶段的权重。</strong>rewrite、协议、头、fail-open、guardrail 全不动；影响面 = 显式开了压缩的那些工作区。</li>
+    <li><strong>契约四条是四行代码，不是一个形容词。</strong>标签语义、fast tokenizer、<code>.bert</code>、同架构基底——每条都能指到宿主的一行；<code>leia delivery verify</code> 把它变成两层七项、三种判定的可执行门。</li>
+    <li><strong>持平 = 不替换；断供 ≠ 断服务。</strong>验收判据是合取（CI 下界 ≥ 0 <em>且</em>有一项显著提升）；产物自包含，Leia 停下来不影响 refine 继续跑、回滚。</li>
+  </ol>
+</div>
+
+<h3>不看上文，写一遍</h3>
+<p>同事（宿主侧的工程师）问你：「Leia 做完之后，refine 那边要改什么？」用四句话回答。其中一句必须提到<strong>回滚</strong>，还有一句必须提到<strong>你怎么证明切换成功了</strong>。</p>
+
+<div class="recall" data-key="lesson-0004:what-does-host-change">
+  <textarea placeholder="1. …&#10;2. …&#10;3. …&#10;4. …"></textarea>
+  <div class="recall-bar"><button class="recall-btn" type="button">对照参考答案</button></div>
+  <div class="recall-answer">
+    <p>1. <strong>改动面很小，而且不动语义。</strong>只换 compress 阶段的 checkpoint 权重——rewrite 阶段、<code>/refine</code> 协议、<code>x-tc-refine*</code> 头、fail-open 与 guardrail 一律不变；影响面限于显式启用压缩档的工作区（默认是关的）。<br>
+       2. <strong>换的是本地产物，不是远程依赖。</strong>权重走私有 HF 仓传到目标机、落成本地快照 + 逐文件 sha256，运行时不再依赖 HF 可达性与凭据。<br>
+       3. <strong>回滚 = <code>git revert</code> + 重启，旧快照原地保留。</strong>因为缓存键里含压缩机身份，换过权重之后旧模型算出的条目自然失效——回滚不会残留脏缓存。这也意味着断供不影响 refine 运行与回滚。<br>
+       4. <strong>证明分两步，缺一不可。</strong>先冷启动后 <code>GET /health</code> 看 <code>compressor: true</code>（false 是 light mode，不能继续）；再跑真链路回归对冻结考卷（149 条 ≈ 600 次网关调用），核判据：质量 delta 的 95% CI 下界 ≥ 0 <em>且</em>压缩率或 fact recall 有一项显著提升——<strong>持平就不切</strong>。切换后看按压缩机标签分组的 token 节省指标来观察。</p>
+  </div>
+</div>
+
+<h3>主读物（一课一份）</h3>
+<ul>
+  <li><code>docs/delivery/refine-integration.md</code> — 接入包草案本体。它同时是 <code>delivery pack</code> 的渲染源，读到占位符不要慌，那正是它还没被渲染的样子（注意里面 2026-09-11 的行号已漂）。</li>
+  <li><code>src/leia/delivery.py</code> 的模块 docstring — 七项检查与三种判定的最紧凑表述，五分钟读完，比任何二手转述都准。</li>
+  <li>宿主 <code>sidecars/refine/compressor.py:10–52</code> — <code>MODEL_ID</code> 与 <code>model_label_for</code>。这是「换一个权重」在代码里真正的样子。</li>
+</ul>
+
+<div class="ask-teacher">
+  <b>我是你的老师，随时打断我。</b>这一课值得追问的三句：「接入包里的 patch 到底改了哪几个文件？」「延迟闸的 1.2 倍是怎么定的，为什么不更严？」「如果宿主以后自己换了基底模型，这份契约会怎么坏？」——任何不清楚的地方都可以直接问。
+</div>
+
+<div class="docnav">
+  <p><strong>下一课候选</strong>：① 滑窗模糊匹配与对齐间隙的细节（偏实现，适合接手代码的人）；② v2 query-aware：只加数据形态，为什么接入面反而最难；③ 把 fact recall 0.7699 的诊断做成可复现实验。</p>
+  <p style="margin-top:1rem">参考：<a href="../reference/delivery-contract.html">交付与接入速查</a> · <a href="index.html">课程目录</a> · <a href="../reference/glossary.html">术语表</a> · <a href="../reference/compress-pipeline.html">压缩管线速查</a></p>
+  <p style="margin-top:.6rem">前序：<a href="0001-what-happens-when-compress-runs.html">第 01 课 · 一次压缩调用里发生了什么</a> · <a href="0002-reading-our-numbers.html">第 02 课 · 怎么读我们的数字</a> · <a href="0003-where-the-data-comes-from.html">第 03 课 · 数据从哪来，红线在哪</a></p>
+</div>
+
+</main>
+
+<script src="../assets/delivery-verify.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+  DeliveryVerify.mount(document.getElementById("sim-verify"));
+</script>
+</body>
+</html>

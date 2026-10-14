@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>交付与接入速查 — Leia 学习空间</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main class="doc">
+
+<p class="eyebrow">Leia 学习空间 · 参考</p>
+<h1>交付与接入速查</h1>
+<p class="lede">替换的边界、契约四条、产物包五件、切换与回滚——评审或接入前扫一眼的那一页。</p>
+<p class="meta"><span>宿主坐标复核于 2026-10-14（tokencamp-pro HEAD <code>6b03be5</code>）· 本页与 <a href="../lessons/0004-delivery-and-integration.html">第 04 课</a> 同源</span></p>
+
+<h2><span class="num">1</span>替换边界：变与不变</h2>
+
+<table>
+  <thead><tr><th>变</th><th>不变</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>compress 阶段的 checkpoint 权重</td>
+      <td>rewrite 阶段（网关 LLM 回调）与它的两道 guardrail</td>
+    </tr>
+    <tr>
+      <td>缓存键里的压缩机标签（当前值 → 新值）</td>
+      <td><code>/refine</code> 协议、请求/响应字段语义</td>
+    </tr>
+    <tr>
+      <td>按压缩机标签分组的 token 节省指标</td>
+      <td><code>x-tc-refine*</code> 头 / <code>refine_mode</code> / <code>refine_tier</code> / aggressiveness 语义</td>
+    </tr>
+    <tr>
+      <td>——</td>
+      <td>fail-open 与 light mode（宿主 ADR-0011）、<code>x-tc-refine: skipped</code> 标记</td>
+    </tr>
+    <tr>
+      <td>——</td>
+      <td>三项 guardrail 与 <code>_FACT_PATTERN</code> 强制保留</td>
+    </tr>
+    <tr>
+      <td>——</td>
+      <td>缓存 LRU/TTL、超时、隐私边界（sidecar 只见 prompt 文本）</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>影响面</strong>：<code>RefineTier</code> 默认 <code>Off</code>（<code>crates/gateway/src/settings.rs:77-80</code>），压缩只在显式启用 <code>rewrite_compress</code> 档的工作区生效（<code>pipeline/transform.rs:241</code>）。<strong>收益与出事的爆炸半径是同一批流量。</strong></p>
+
+<h2><span class="num">2</span>drop-in 契约四条</h2>
+
+<table>
+  <thead><tr><th>#</th><th>条件</th><th>宿主依赖</th><th>违反的后果</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>①</td>
+      <td><code>architectures</code> 含 <code>BertForTokenClassification</code>；<code>num_labels == 2</code>；<code>id2label</code> = {0: drop, 1: keep}</td>
+      <td>保留概率取 <code>softmax(logits)[..., 1]</code>——<em>位置语义</em></td>
+      <td>写反 = 静默反向（能加载、不报错、压缩照跑）</td>
+    </tr>
+    <tr>
+      <td>②</td>
+      <td>tokenizer 为 <strong>fast</strong>，<code>return_offsets_mapping</code> 可用</td>
+      <td>force-keep 用 offsets 把事实区间映射到 token</td>
+      <td>事实保护失效；慢 tokenizer 直接调不动</td>
+    </tr>
+    <tr>
+      <td>③</td>
+      <td>模型类暴露 <code>.bert</code> 属性</td>
+      <td><code>refiner.py:338</code> 直调 <code>self.compressor.model.bert(**inputs)</code></td>
+      <td>抛异常 → 回落原文（fail-open，不报错但白干）</td>
+    </tr>
+    <tr>
+      <td>④</td>
+      <td>与现网同架构基底（mBERT-base 系列）</td>
+      <td>延迟档案与内存占用要能直接对比</td>
+      <td>延迟闸失去可比性</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>①②③ 是<strong>运行时硬条件</strong>；④ 是<strong>保住延迟闸的前提</strong>，不是运行条件。<strong>已知反例</strong>：XLM-R-large 的属性是 <code>.roberta</code>，③ 不满足 → 不是 drop-in（后手牌激活判据据此修订）。</p>
+
+<h2><span class="num">3</span>产物包五件（缺一不算交付）</h2>
+
+<table>
+  <thead><tr><th>件</th><th>内容</th><th>生成 / 冻结</th></tr></thead>
+  <tbody>
+    <tr><td>checkpoint</td><td>HF 格式，与 LLMLingua-2 同接口</td><td>训练产物 + <code>delivery verify</code> 双层 PASS</td></tr>
+    <tr><td>溯源 model card</td><td>基底许可、各子集许可与用途、合成数据声明、MeetingBank 排除声明</td><td>手写，锚在冻结 manifest 上</td></tr>
+    <tr><td>对照报告</td><td>冻结 golden 149 条上的验收数字</td><td><code>leia eval run</code> 归档</td></tr>
+    <tr><td>延迟档案</td><td>compress p95，按 checkpoint、按档位</td><td>阶段 1 双基线顺带产出；<strong>延迟闸 p95 ≤ 现网 1.2×</strong></td></tr>
+    <tr><td>接入包</td><td>契约校验清单 + 宿主 patch + 切换/观察/回滚 runbook + 非差异清单</td><td><code>leia delivery pack</code> 从草案渲染</td></tr>
+  </tbody>
+</table>
+
+<h2><span class="num">4</span>接入包：打包、传输、回滚素材</h2>
+
+<table>
+  <thead><tr><th>输出</th><th>用途</th></tr></thead>
+  <tbody>
+    <tr><td><code>SHA256SUMS</code></td><td>逐文件哈希，<code>shasum -a 256 -c</code> 直用；落盘后第一件事</td></tr>
+    <tr><td><code>integration-pack.md</code></td><td>由 <code>docs/delivery/refine-integration.md</code> 渲染（占位符 → 真实值，零手工）</td></tr>
+    <tr><td><code>verify-report.json</code></td><td>打包那一刻的机读报告（无时间戳，内容寻址）</td></tr>
+  </tbody>
+</table>
+
+<div class="rule-box">
+  <h3>三条不可谈判性质</h3>
+  <ol>
+    <li>verify 不过<strong>不许打包</strong>（门在打包之前）；</li>
+    <li><strong>不覆盖</strong>已存在的输出目录（pack 是不可变产物）；</li>
+    <li><strong>确定性 + 拒绝半渲染</strong>：认不出的占位符直接中止，不许有 <code>{{…}}</code> 漏进定稿。</li>
+  </ol>
+</div>
+
+<p><strong>目标机形态</strong>：私有 HF 仓 → 本地快照 <code>sidecars/refine/models/&lt;model-tag&gt;/</code> + <code>SHA256SUMS</code>；运行时不再依赖 HF 可达性与凭据。<strong>旧快照原地不删</strong>——它就是回滚素材。</p>
+
+<p><strong>标签从哪来（打包前必看）</strong>：渲染时 <code>MODEL_ID</code> 取 <code>config.json</code> 的 <code>_name_or_path</code>，缺该字段就退回<strong>目录名</strong>，<code>MODEL_TAG</code> 再取它的 basename——<strong>暂存目录名会被直接写进宿主 patch 与指标标签</strong>。交付前把暂存目录命名为 <code>leia-v1</code>（或导出时写入 <code>_name_or_path</code>）。2026-10-14 实测：pilot 产物缺该字段，渲染出的标签是 <code>checkpoint</code>，注入路径会变成 <code>models/checkpoint</code>。</p>
+
+<h2><span class="num">5</span>切换与回滚 runbook</h2>
+
+<ol class="steps">
+  <li>落盘快照 → 校验 sha256 → 跑 <code>delivery verify</code>。</li>
+  <li>打接入包 patch（改动被刻意限制在少数几处）。</li>
+  <li>冷启动 sidecar → <code>GET /health</code> 必须 <code>{"status":"ok","compressor":true}</code>（<code>false</code> = light mode，<strong>停</strong>）。</li>
+  <li>stub 冒烟（零网络零花费，验接线）。</li>
+  <li>真链路回归：冻结考卷全量，<strong>149 条 ≈ 600 次网关调用</strong>，走宿主网关账本。</li>
+  <li>核判据 → 切换 → 观察（applied / fallback / skipped + 按压缩机标签的 token 节省）。</li>
+  <li>异常回滚：<code>git revert</code> + 重启。</li>
+</ol>
+
+<div class="callout">
+  <span class="label">判据（合取，别只读半句）</span>
+  <p>任务级质量 delta 的 <strong>95% CI 下界 ≥ 0</strong> <em>且</em> <strong>压缩率或 fact recall 有一项显著提升</strong>。<br>
+  <strong>持平 = 不替换。</strong>负结果归档，refine 继续用公开 checkpoint。</p>
+</div>
+
+<p><strong>回滚不残留脏缓存</strong>：缓存键含压缩机身份，换过权重后旧条目 key 不同，自然失效。（这原本是真实的坑——键里不含压缩模型时换完权重仍会静默命中。）</p>
+
+<h2><span class="num">6</span>再交付触发器与断供</h2>
+
+<table>
+  <thead><tr><th>触发器</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>真链路回归跌破验收线</td><td>影响压缩面/权重的改动后必须跑真链路全量，结果摘录入本仓归档</td></tr>
+    <tr><td>负载分布漂移</td><td>golden 主动扩集 + 线上聚合指标（节省率/fallback/延迟）漂移告警；<strong>均为代理信号，不声称测质量</strong></td></tr>
+    <tr><td>训练语料许可变化</td><td>许可链断了就不能再供</td></tr>
+    <tr><td>v2 立项</td><td>换的不只是权重，还有接口——属另一次交付</td></tr>
+  </tbody>
+</table>
+
+<p><strong>无触发不交付。断供 ≠ 断服务</strong>：产物自包含（本地快照 + 旧模型并存，<code>from_pretrained(本地路径)</code> 离线可跑），Leia 停止不影响 refine 运行与回滚。</p>
+
+<h2><span class="num">7</span>命令速查</h2>
+
+<pre><code># 契约校验：两层七项，三种判定（PASS / VIOLATION / UNVERIFIED）
+uv run leia delivery verify &lt;checkpoint 目录&gt;
+uv run leia delivery verify &lt;checkpoint 目录&gt; --report verify.json
+uv run leia delivery verify &lt;checkpoint 目录&gt; --static-only    # 跳加载层
+uv sync --group load                                          # 打开加载层（torch + transformers）
+
+# 打包：verify 不过则拒绝；输出目录必须不存在
+uv run leia delivery pack &lt;checkpoint 目录&gt; --out &lt;输出目录&gt;
+
+# 目标机落盘后
+shasum -a 256 -c SHA256SUMS</code></pre>
+
+<p class="note"><strong>退出码</strong>：<code>delivery verify</code> 0 = 通过（<strong>含加载层 UNVERIFIED 的情形</strong>），非 0 = 契约违反。判定细节要看报告，别只看退出码。</p>
+
+<h2><span class="num">8</span>现状与文档漂移（2026-10-14）</h2>
+
+<table>
+  <thead><tr><th>项</th><th>状态</th></tr></thead>
+  <tbody>
+    <tr><td>缓存键含压缩机身份</td><td><strong>宿主已做</strong>（<code>refine_cache.py:12-22</code>，第九个参数）</td></tr>
+    <tr><td>网关接出 token 计数与压缩机标签</td><td><strong>宿主已做</strong>（<code>refine.rs:200-216</code>；指标 <code>refine_tokens_total{direction, compressor}</code>）</td></tr>
+    <tr><td>加载路径可指向本地快照</td><td><strong>有评测缝，无部署路径</strong>：<code>COMPRESSION_MODEL_ID</code>（<code>compressor.py:16</code>）代码注释写明只为评测基线、部署不设；切换仍是 <code>MODEL_ID</code> 默认值那一行</td></tr>
+    <tr><td>本仓产物跑过宿主真实加载路径</td><td><strong>已发生</strong>：<code>runs/20260913T110118217217Z-smoke149-pilot-plumbing-252d69d3/</code>，<code>PLUMBING-ONLY</code>，无质量声称</td></tr>
+    <tr><td>产物包五件</td><td><strong>仅第一件有实物</strong>；<code>delivery pack</code> 尚未针对交付跑过</td></tr>
+  </tbody>
+</table>
+
+<p><strong>文档已按宿主 HEAD 同步（2026-10-14）</strong>：<code>docs/delivery/refine-integration.md</code>（行号、runbook 的 <strong>149 条</strong>、接入包 §3 重写为「只需打 3.1 一处」）与 <code>docs/decisions.md</code> §6（新增 2026-10-14 修订段）都已修正。但这条同步会再次过期——<em>先给符号，再给行号</em>：符号是稳的，行号会动（本轮漂移实例：<code>.bert</code> 调用 <code>263</code> → <code>338</code>，<code>make_cache_key</code> 调用点 <code>151–154</code> → <code>182–185</code>）。</p>
+
+<div class="docnav">
+  <p>配套：<a href="glossary.html">术语表</a> · <a href="compress-pipeline.html">压缩管线速查</a> · <a href="metrics-checklist.html">读表五问</a> · <a href="../lessons/0004-delivery-and-integration.html">第 04 课 · 交付与接入</a></p>
+</div>
+
+</main>
+</body>
+</html>

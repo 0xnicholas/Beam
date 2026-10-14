@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>压缩管线速查 — Leia 学习空间</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<main class="doc">
+
+<p class="eyebrow">Leia 学习空间 · 参考</p>
+<h1>压缩管线速查</h1>
+<p class="lede">一次 <code>compress()</code> 的全部决策规则、旋钮与已知破口。贴在墙上用的那一页。</p>
+<p class="meta"><span>代码坐标以 <code>tokencamp-pro/sidecars/refine/</code> 为根 · 术语见<a href="glossary.html">术语表</a></span></p>
+
+<h2><span class="num">1</span>决策规则</h2>
+
+<div class="rule-box">
+  <pre><code>p(keep) = softmax(BertForTokenClassification(text).logits)[:, :, 1]
+
+p(keep) = 1.0       若 token 属于 [CLS]/[SEP]
+                    或 token 字符区间与事实/保护段区间重叠
+
+保留 ⇔ p(keep) &gt;= 档位             # 档位 = aggressiveness，默认 0.2
+输出  = decode(保留的 token ids)     # token 级子序列</code></pre>
+  <p>三处强制 1.0 使它们对任意阈值免疫；<code>min_tokens</code> 保底（不足时按概率取 top-k）、<code>max_tokens</code> 硬上限（会真的截断，甚至截掉受保护的 token）。</p>
+</div>
+
+<h2><span class="num">2</span>调用路径</h2>
+
+<table>
+  <thead><tr><th>层</th><th>做什么</th><th>坐标</th></tr></thead>
+  <tbody>
+    <tr><td><code>POST /refine</code></td><td>校验请求，默认档位 0.2；<code>min_tokens</code>/<code>max_tokens</code> 默认不传</td><td><code>server.py:57</code></td></tr>
+    <tr><td>Refiner</td><td>剥掉 <code>&lt;tc_keep&gt;</code> 标签，把内容作为保护串传入</td><td><code>refiner.py:210–213</code></td></tr>
+    <tr><td>Compressor.compress</td><td>数 token；≤512 走单块，&gt;512 走分块</td><td><code>compressor.py:56–130</code></td></tr>
+    <tr><td>_compress_one</td><td>前向 → 强制保留 → 阈值 → 解码</td><td><code>compressor.py:134–229</code></td></tr>
+    <tr><td>rewrite（可选）</td><td>网关大模型改写 + 双 guardrail（相似度 F0.5 ≥ 0.75、事实召回 ≥ 0.9）</td><td><code>refiner.py:294–316</code></td></tr>
+  </tbody>
+</table>
+
+<h2><span class="num">3</span>旋钮与常量</h2>
+
+<table>
+  <thead><tr><th>名字</th><th class="num">值</th><th>含义 / 位置</th></tr></thead>
+  <tbody>
+    <tr><td><code>aggressiveness</code></td><td class="num">0.2</td><td>保留概率阈值（档位）；请求头可覆盖，clamp 到 [0,1]</td></tr>
+    <tr><td><code>min_tokens</code></td><td class="num">None</td><td>保留数下限，不足时按概率取 top-k</td></tr>
+    <tr><td><code>max_tokens</code></td><td class="num">None</td><td>硬上限；先截断、后计算压缩率，可能切掉受保护 token</td></tr>
+    <tr><td><code>BERT_MAX_LENGTH</code></td><td class="num">512</td><td>单块上限（含特殊 token）</td></tr>
+    <tr><td><code>CHUNK_TARGET_TOKENS</code></td><td class="num">480</td><td>分块目标长度，留 buffer 给特殊 token</td></tr>
+    <tr><td><code>KEEP_CAP_RATIO</code></td><td class="num">0.5</td><td>保护内容占输入的token上限，超出部分按出现顺序失效</td></tr>
+    <tr><td><code>_FACT_PATTERN</code></td><td class="num">—</td><td><code>#[\w-]+|\d+(?:[.,:/-]\d+)*%?</code></td></tr>
+    <tr><td>相似度 guardrail</td><td class="num">0.75</td><td>rewrite 与原文的 token 对齐 F0.5 下限</td></tr>
+    <tr><td>事实召回 guardrail</td><td class="num">0.9</td><td>rewrite 后事实逐字存活率下限</td></tr>
+    <tr><td><code>LENGTH_GUARD_RATIO</code></td><td class="num">1.2</td><td>rewrite 不得比原文长过这个倍率</td></tr>
+  </tbody>
+</table>
+
+<h2><span class="num">4</span>已知破口与限制</h2>
+
+<ul>
+  <li><strong>解码空格（WordPiece）。</strong>事实每个 token 都保住了，字符串却可能被拆开（<code>#A-1029</code> → <code># A - 1029</code>）。逐字比对的事实召回会把它记成丢失。第一课的诊断：这正是 mBERT 0.7699 缺口的主要来源。</li>
+  <li><strong>解码粘连（SentencePiece）。</strong>相邻的保留片段会被粘成一个新词（<code>driven</code> + <code>ly</code> → <code>drivenly</code>）。子序列保证在 token 层，不在字符串层。</li>
+  <li><strong>块间不可见。</strong>&gt;512 token 时，每块各自决策，跨块指代关系在压缩阶段即断裂。</li>
+  <li><strong>结构塌缩。</strong>分块结果用单空格拼接，原始换行与消息边界丢失。</li>
+  <li><strong>硬截断。</strong><code>max_tokens</code> 无差别截断尾部，可能砍掉被强制保留的事实。</li>
+  <li><strong>阈值不连续。</strong>概率分布有空洞，抬档位可能一个 token 都不动（实测 0.3→0.4 保留数不变）。</li>
+</ul>
+
+<h2><span class="num">5</span>口径与基线数字</h2>
+
+<table>
+  <thead>
+    <tr><th>档位</th><th class="num">压缩率（计费）</th><th class="num">fact recall</th><th class="num">token F0.5</th><th class="num">质量 delta [95% CI]</th><th class="num">延迟 p95</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>0.1</td><td class="num">0.2203</td><td class="num">0.7699</td><td class="num">0.6965</td><td class="num">+0.0095 [−0.0140, +0.0345]</td><td class="num">3.2 ms</td></tr>
+    <tr><td><strong>0.2</strong></td><td class="num">0.2948</td><td class="num">0.7699</td><td class="num">0.6626</td><td class="num">+0.0009 [−0.0330, +0.0363]</td><td class="num">6.4 ms</td></tr>
+    <tr><td>0.3</td><td class="num">0.3590</td><td class="num">0.7699</td><td class="num">0.6393</td><td class="num">−0.0151 [−0.0507, +0.0209]</td><td class="num">5.0 ms</td></tr>
+    <tr><td>0.4</td><td class="num">0.4179</td><td class="num">0.7699</td><td class="num">0.6159</td><td class="num">−0.0670 [−0.1075, −0.0279]</td><td class="num">2.9 ms</td></tr>
+    <tr><td>0.5</td><td class="num">0.4748</td><td class="num">0.7699</td><td class="num">0.5883</td><td class="num">−0.0729 [−0.1172, −0.0293]</td><td class="num">3.0 ms</td></tr>
+  </tbody>
+</table>
+
+<p class="note">冻结基线：149 条 golden（RAG 49 / system 50 / dialogue 50，sha256 <code>fb728d6a5042…</code>），mBERT 公开 checkpoint，作答 <code>deepseek-v4-pro</code>、judge <code>glm-5.1</code>、rubric v1，2026-09-12。同考卷 XLM-R-large：压缩更保守（0.1 档保留率 0.790 vs 0.780）、fact recall 全档 1.0000、延迟 p95 17.8–25.8 s。完整数据见 <code>docs/evaluation.md</code> 与 <code>docs/baselines/</code>。</p>
+
+<p><strong>读数提醒：</strong>fact recall 的数字是字符串逐字判定的结果，会受第 4 节解码空格影响；压缩延迟是生产形态（含 HTTP）的 p95，与实验室毫秒数不可直接比较。</p>
+
+<h2><span class="num">6</span>复现与测量</h2>
+
+<pre><code># 逐 token 概率 + 各档位实测输出（生产代码路径，离线）
+HF_HUB_OFFLINE=1 .venv-train/bin/python assets/repro/keep-probability-trace.py \
+  --model &lt;本地 checkpoint 快照&gt; --text "待测文本" --levels 0.1 0.2 0.3 0.4 0.5</code></pre>
+
+<div class="docnav">
+  <p>配套：<a href="glossary.html">术语表</a> · <a href="../lessons/0001-what-happens-when-compress-runs.html">第 01 课 · 一次压缩调用里发生了什么</a></p>
+</div>
+
+</main>
+</body>
+</html>
