@@ -16,23 +16,23 @@ Originals are level-independent: `prime_originals` answers and judges them
 exactly once per run, so a sweep pays for originals one time only.
 """
 
-from leia.bootstrap import (
+from beam.bootstrap import (
     DEFAULT_CONFIDENCE,
     METHOD,
     paired_bootstrap_ci,
 )
-from leia.clients.gateway import GatewayClient, GatewayError
-from leia.golden import GoldenItem
-from leia.judge import (
+from beam.clients.gateway import GatewayClient, GatewayError
+from beam.golden import GoldenItem
+from beam.judge import (
     JudgeError,
     judge_prompt,
     parse_judge_scores,
     rubric_sha256,
     score_of,
 )
-from leia.quality import rounded_mean
-from leia.resume import CallJournal, Replay
-from leia.tasks import task_prompt, task_templates_sha256
+from beam.quality import rounded_mean
+from beam.resume import CallJournal, Replay
+from beam.tasks import task_prompt, task_templates_sha256
 
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -100,7 +100,7 @@ class TaskQualityLoop:
         self._lock = threading.Lock()
         # Interrupt-resume ledger (issue #8): when set, recorded gateway
         # results are replayed (never re-billed) under content-addressed
-        # conditions; see leia.resume.
+        # conditions; see beam.resume.
         self._replay = replay
         self._journal = journal
         if replay is not None:

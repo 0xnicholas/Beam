@@ -1,6 +1,6 @@
 """Build the v1 synthetic training layers (issue #17).
 
-Pinned invocation for `leia corpus build-synthetic` + immediate full
+Pinned invocation for `beam corpus build-synthetic` + immediate full
 validation:
 
   - synthesizes the system_prompt + dialogue layers from TRAIN seeds only
@@ -36,7 +36,7 @@ CORPUS_OUT = REPO / "training" / "corpus" / "synthetic-train-v1.jsonl"
 MANIFEST_OUT = REPO / "training" / "manifests" / "synthetic-training-v1.json"
 
 # docs/training-mix.md: rag 30 / system_prompt 35 / dialogue 35 (±5pt at
-# sizing time). The shares live in leia.synthetic.RATIO_TARGET_PCT
+# sizing time). The shares live in beam.synthetic.RATIO_TARGET_PCT
 # (single authority, recorded in the manifest); this script derives the
 # per-class anchor from the FROZEN rag base, not hard-coded blindly:
 # 300 rag -> total 1000 -> 350 + 350.
@@ -73,14 +73,14 @@ def _targets(rag_base: int, ratio: dict[str, float]) -> dict[str, int]:
 
 
 def main() -> int:
-    from leia.corpus import golden_fingerprints
-    from leia.dialogue import load_families as load_dialogue_families
-    from leia.synthetic import (
+    from beam.corpus import golden_fingerprints
+    from beam.dialogue import load_families as load_dialogue_families
+    from beam.synthetic import (
         RATIO_TARGET_PCT,
         collect_synthetic_errors,
         write_synthetic_artifacts,
     )
-    from leia.sysprompt import load_families as load_sysprompt_families
+    from beam.sysprompt import load_families as load_sysprompt_families
 
     commit, dirty = _repo_state()
     rag_manifest = json.loads(RAG_MANIFEST.read_text(encoding="utf-8"))

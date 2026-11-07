@@ -10,11 +10,11 @@ coverage drops).
 
 import pytest
 
-from leia.clients.gateway import GatewayError, StubGatewayClient
-from leia.clients.sidecar import StubRefineClient
-from leia.golden import GoldenItem
-from leia.judge import split_judge_prompt
-from leia.task_quality import TaskQualityLoop
+from beam.clients.gateway import GatewayError, StubGatewayClient
+from beam.clients.sidecar import StubRefineClient
+from beam.golden import GoldenItem
+from beam.judge import split_judge_prompt
+from beam.task_quality import TaskQualityLoop
 
 SOURCE = {
     "dataset": "synthetic",
@@ -310,7 +310,7 @@ class TestJudgeMalformedReplyRetry:
         )]
         gateway = FlakyJudgeGateway(bad_replies=99)
         loop = self._loop(gateway)
-        from leia.judge import JudgeError
+        from beam.judge import JudgeError
 
         with pytest.raises(JudgeError, match="rag-1"):
             loop.prime_originals(items, golden_sha256="sha")
@@ -345,7 +345,7 @@ class TestItemConcurrency:
         )
 
     def test_journal_records_all_items_under_concurrency(self, tmp_path):
-        from leia.resume import CallJournal
+        from beam.resume import CallJournal
         import json as _json
 
         journal = CallJournal(tmp_path / "ledger.jsonl")
@@ -416,7 +416,7 @@ class TestJudgeContentFilterRetry:
         assert loop.call_stats()["answers_fresh"] == 2  # re-answered once
 
     def test_persistent_filter_raises_with_item_id(self):
-        from leia.task_quality import TaskQualityError
+        from beam.task_quality import TaskQualityError
 
         items = [GoldenItem(
             id="rag-nuke", load_type="rag", prompt="context about WMD reports",

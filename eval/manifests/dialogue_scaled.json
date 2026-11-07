@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "method": "multi-turn conversation templates (src/leia/dialogue.py — five families ported from 0xnicholas/tokencamp compression/eval/conversation_gen.py, same author, five new) + seeded slot synthesis; prompt = user/assistant history + final user recall message, serialized as 'role: content' lines; key_points are history facts (names/dates/prior decisions) that quote the history verbatim so survival is judgeable after compression; per-family DISJOINT eval/train integer seed ranges in dialogue_families.toml are the split authority — golden draws from eval seeds only; the phase-2 training side will reuse the same templates and machinery with train seeds (shared code, never shared seeds)",
+  "method": "multi-turn conversation templates (src/beam/dialogue.py — five families ported from 0xnicholas/tokencamp compression/eval/conversation_gen.py, same author, five new) + seeded slot synthesis; prompt = user/assistant history + final user recall message, serialized as 'role: content' lines; key_points are history facts (names/dates/prior decisions) that quote the history verbatim so survival is judgeable after compression; per-family DISJOINT eval/train integer seed ranges in dialogue_families.toml are the split authority — golden draws from eval seeds only; the phase-2 training side will reuse the same templates and machinery with train seeds (shared code, never shared seeds)",
   "entry_id_rule": "dlg-<family>-s<seed>",
   "rng": "random.Random(int.from_bytes(sha256('<family>:<seed>')[:8]))",
   "content_addressing": "sha1(prompt)",

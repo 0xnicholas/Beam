@@ -17,12 +17,12 @@
      <script src="../assets/bootstrap-sim.js"></script>
      <script>
        BootstrapSim.mount(document.getElementById("sim-boot"),
-                          window.LEIA_DELTAS, {checkpoint: "mbert", level: 0.2});
+                          window.BEAM_DELTAS, {checkpoint: "mbert", level: 0.2});
      </script>
 
    Caliber note: the demo draws with Math.random and reports percentiles by
    linear interpolation between order statistics — the same percentile
-   caliber as the harness (src/leia/quality.py), a different RNG (the
+   caliber as the harness (src/beam/quality.py), a different RNG (the
    report seed is pinned and printed alongside for comparison).
    ========================================================================== */
 

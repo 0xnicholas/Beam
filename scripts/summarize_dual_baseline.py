@@ -77,7 +77,7 @@ def main(argv: list[str]) -> int:
         f"- mBERT-base run: `{mbert['run_id']}`",
         f"- XLM-R-large run: `{xlmr['run_id']}`",
         f"- golden: {mbert['golden']['item_count']} items, sha256 `{golden_a[:12]}…`",
-        f"- harness: leia v{mbert['harness']['version']}, "
+        f"- harness: beam v{mbert['harness']['version']}, "
         f"commit `{str(mbert['harness'].get('git_commit'))[:12]}…`"
         + ("(dirty tree)" if mbert["harness"].get("git_dirty") else "(clean tree)"),
         f"- judge/answer: {xlmr['task_quality']['answer_model']} answers, "

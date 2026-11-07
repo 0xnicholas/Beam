@@ -8,7 +8,7 @@ mean delta from zero. All pure functions.
 
 import pytest
 
-from leia.sizing import (
+from beam.sizing import (
     effect_size,
     judge_score_variance,
     required_n,

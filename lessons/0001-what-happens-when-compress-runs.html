@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>第 01 课 · 一次压缩调用里发生了什么 — Leia 学习空间</title>
+<title>第 01 课 · 一次压缩调用里发生了什么 — Beam 学习空间</title>
 <link rel="stylesheet" href="../assets/lesson.css">
 </head>
 <body>
 <main class="lesson">
 
-<p class="eyebrow">Leia 学习空间 · 第 01 课</p>
+<p class="eyebrow">Beam 学习空间 · 第 01 课</p>
 <h1>一次压缩调用里发生了什么</h1>
 
-<p class="lede">Leia 的压缩只有一个动作：<em>让模型给每个 token 打一个「该保留」的概率，低于阈值的删掉</em>。整条压缩链路——档位、事实、分块、蒸馏——都是这一句话的推论。</p>
+<p class="lede">Beam 的压缩只有一个动作：<em>让模型给每个 token 打一个「该保留」的概率，低于阈值的删掉</em>。整条压缩链路——档位、事实、分块、蒸馏——都是这一句话的推论。</p>
 
 <p class="meta">
   <span>约 15 分钟</span>
@@ -22,7 +22,7 @@
 
 <h2><span class="num">01</span>先把压缩放回链路里</h2>
 
-<p>生产的 refine 是两段：<strong>compress</strong>（本地 BERT，毫秒级，无网络）和 <strong>rewrite</strong>（网关的大模型回调，可选）。真正能省下 token 的是第一段；第二段是质量补偿。Leia 的全部工作，就是替换第一段里的那一个 checkpoint 权重——接口、协议、fail-open 语义一概不动。</p>
+<p>生产的 refine 是两段：<strong>compress</strong>（本地 BERT，毫秒级，无网络）和 <strong>rewrite</strong>（网关的大模型回调，可选）。真正能省下 token 的是第一段；第二段是质量补偿。Beam 的全部工作，就是替换第一段里的那一个 checkpoint 权重——接口、协议、fail-open 语义一概不动。</p>
 
 <div class="callout">
   <span class="label">本课的边界</span>
@@ -152,7 +152,7 @@ compressed_text = self.tokenizer.decode(kept_ids, skip_special_tokens=True)</cod
 
 <div class="callout">
   <span class="label">同一个正则，两处使用</span>
-  <p>评测 harness 里的 fact recall 用的是<strong>逐字复制</strong>的同一个正则（<code>src/leia/quality.py:33</code>）。两侧必须同时漂移，否则「运行时的安全性」和「考卷上的分数」就变成两把不同的尺子。</p>
+  <p>评测 harness 里的 fact recall 用的是<strong>逐字复制</strong>的同一个正则（<code>src/beam/quality.py:33</code>）。两侧必须同时漂移，否则「运行时的安全性」和「考卷上的分数」就变成两把不同的尺子。</p>
 </div>
 
 <p>钉死不是万能的，两个已知破口写在代码注释里：<code>max_tokens</code> 是硬上限，截断时可能把尾部的受保护 token 一起切掉；分块路径（下一节）里，事实可能因为句子被重新拼接而匹配不上。安全网有洞，洞也被记录在案。</p>
@@ -192,7 +192,7 @@ compressed_text = self.tokenizer.decode(kept_ids, skip_special_tokens=True)</cod
 
 <p>看第 3 节里那条英文压缩输出：原文是 <code>12.5%</code>，压缩后是 <code>12. 5 %</code>。中文例句里也一样：<code>#A-1029</code> 变成 <code># A - 1029</code>。<strong>每个字符都活着，但字符串被空格拆开了。</strong></p>
 
-<p>而 fact recall 的判据是字符串包含：<code>fact_recall(item.prompt, result.refined_text)</code>，逐字判断 <code>"#A-1029" in 压缩文本</code>（<code>src/leia/runner.py:277</code>）。空格一插，逐字判定立刻失败——尽管一个字符都没丢。</p>
+<p>而 fact recall 的判据是字符串包含：<code>fact_recall(item.prompt, result.refined_text)</code>，逐字判断 <code>"#A-1029" in 压缩文本</code>（<code>src/beam/runner.py:277</code>）。空格一插，逐字判定立刻失败——尽管一个字符都没丢。</p>
 
 <p class="note"><b>为什么偏偏是 mBERT？</b>WordPiece 的解码规则是：<code>##</code> 开头的片段粘到前一个 token 上，其他每个 token 前面补一个空格。<code>#</code>、<code>-</code>、<code>.</code>、<code>%</code> 在 WordPiece 里都是独立 token 且不以 <code>##</code> 开头，于是空格被挨个补进来。XLM-R 用的是 SentencePiece，解出来的就是 <code>#A-1029</code>、<code>12.5%</code>，一个字不差。</p>
 
@@ -228,9 +228,9 @@ compressed_text = self.tokenizer.decode(kept_ids, skip_special_tokens=True)</cod
   <li><strong>微调。</strong>用这份标签数据集训练一个双向编码器 + 分类头——就是运行时的那个 checkpoint。</li>
 </ol>
 
-<p class="note">管线在本仓的实现：<code>src/leia/distill.py</code>（分块 <code>chunk_text</code>、匹配 <code>match_labels</code>、质控 <code>quality_control</code>），策略与红线见 <code>docs/data-strategy.md</code>。</p>
+<p class="note">管线在本仓的实现：<code>src/beam/distill.py</code>（分块 <code>chunk_text</code>、匹配 <code>match_labels</code>、质控 <code>quality_control</code>），策略与红线见 <code>docs/data-strategy.md</code>。</p>
 
-<p>Leia 自己做的是第 2 步的替换：语料不照抄论文——公开语料打底，加上合成的 system prompt 与多轮对话（公开数据集对这两类覆盖不足），并且有两条硬红线：<strong>教师的训练集 MeetingBank 一律排除</strong>（混进来等于评测时背答案），<strong>客户 prompt 永远不进训练与评测</strong>。</p>
+<p>Beam 自己做的是第 2 步的替换：语料不照抄论文——公开语料打底，加上合成的 system prompt 与多轮对话（公开数据集对这两类覆盖不足），并且有两条硬红线：<strong>教师的训练集 MeetingBank 一律排除</strong>（混进来等于评测时背答案），<strong>客户 prompt 永远不进训练与评测</strong>。</p>
 
 <h2><span class="num">09</span>收尾：三句话</h2>
 
@@ -291,7 +291,7 @@ llmlingua-2-bert-base-multilingual-cased-meetingbank/snapshots/&lt;rev&gt; \
 <script src="../assets/threshold-sim.js"></script>
 <script src="../assets/quiz.js"></script>
 <script>
-  ThresholdSim.mount(document.getElementById("sim-zh"), window.LEIA_TRACE_ZH, {
+  ThresholdSim.mount(document.getElementById("sim-zh"), window.BEAM_TRACE_ZH, {
     title: "生产 checkpoint 的真实前向 · 56 个 token",
     initial: 0.2
   });

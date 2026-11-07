@@ -36,13 +36,13 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from leia.golden import GoldenError, load_golden
-from leia.longbench import (
+from beam.golden import GoldenError, load_golden
+from beam.longbench import (
     LongBenchError,
     load_verified_split,
     render_prompt,
 )
-from leia.splits import row_fingerprint
+from beam.splits import row_fingerprint
 
 LOAD_TYPES = ("rag", "system_prompt", "dialogue")
 _SOURCE_REQUIRED = ("dataset", "subset", "license", "split", "content_sha1")
@@ -70,7 +70,7 @@ class CorpusItem:
 def build_training_entries(manifest: dict, *, data_dir: Path) -> list[dict]:
     """Extract the TRAIN half of every train-permitted LongBench subset.
 
-    Mirrors leia.longbench.build_rag_entries (golden side): the manifest
+    Mirrors beam.longbench.build_rag_entries (golden side): the manifest
     is the split record and must describe the exact bytes being split;
     entries are emitted sorted by fingerprint; subsets with train_use=false
     are skipped here and recorded as excluded by build_training_manifest.
@@ -131,7 +131,7 @@ def write_training_artifacts(
 ) -> dict:
     """Build + write the corpus jsonl and its manifest in one step.
 
-    Shared by `leia corpus build` and scripts/build_training_corpus.py
+    Shared by `beam corpus build` and scripts/build_training_corpus.py
     so the CLI and the pinned invocation can never drift apart.
     record_file overrides the path string recorded in the manifest (the
     script records the repo-relative identity instead of an absolute path).
@@ -231,7 +231,7 @@ def build_training_manifest(
         "schema_version": 1,
         "split_method": manifest.get("split_method", ""),
         "generated_by": {
-            "tool": "leia.corpus",
+            "tool": "beam.corpus",
             "repo_commit": repo_commit,
             "repo_dirty": repo_dirty,
         },
@@ -259,7 +259,7 @@ def build_training_manifest(
             "train_half": "every entry asserts split=='train' and is re-proved "
             "offline: content_sha1 >= train_boundary_fingerprint",
             "golden_zero_overlap": "content_sha1 intersection with golden "
-            "asserted empty by `leia corpus validate --golden`",
+            "asserted empty by `beam corpus validate --golden`",
         },
     }
 

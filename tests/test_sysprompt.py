@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from leia.golden import load_golden
-from leia.sysprompt import (
+from beam.golden import load_golden
+from beam.sysprompt import (
     CONSTRAINT_TYPES,
     SysPromptError,
     build_sysprompt_entries,

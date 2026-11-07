@@ -10,7 +10,7 @@
 
 本包是产物包第五件:让宿主**照做即可接入**的单元,不是说明文档。
 
-本文件同时是**接入包草案**:`leia delivery pack` 从被校验的 checkpoint
+本文件同时是**接入包草案**:`beam delivery pack` 从被校验的 checkpoint
 目录渲染定稿(占位符 → 真实值,单一来源,零手工填入)。
 
 > **复核结论(2026-10-14)**:原列"宿主改造集四处"中,**三处已由宿主自行落地**
@@ -25,13 +25,13 @@
 - checkpoint 目录内容摘要:`{{CHECKPOINT_DIGEST}}`
 - 随附 `SHA256SUMS` 清单哈希:`{{SHA256SUMS_SHA256}}`
 - checkpoint 文件数:{{CHECKPOINT_FILE_COUNT}}(逐文件哈希见随附 `SHA256SUMS`)
-- 渲染 harness:leia {{HARNESS_VERSION}}
+- 渲染 harness:beam {{HARNESS_VERSION}}
 
 > **打包前必看:标签从哪来。**`{{MODEL_ID}}` 取 `config.json` 的
 > `_name_or_path`,该字段缺失时退回**目录名**;`{{MODEL_TAG}}` 再取它的
 > basename——也就是说,**暂存目录名会被直接写进 patch 与指标标签**。目录叫
 > `checkpoint`,渲染出来的注入路径就是 `models/checkpoint`(错),宿主的
-> `compressor` 标签也不可读。交付前把暂存目录命名为 `leia-v1`(或在导出时
+> `compressor` 标签也不可读。交付前把暂存目录命名为 `beam-v1`(或在导出时
 > 写入 `_name_or_path`),再跑 `delivery pack`。2026-10-14 实测:
 > `runs/train/pilot-v1/checkpoint` 正是缺该字段的情形,渲染出的标签是
 > `checkpoint`。
@@ -53,11 +53,11 @@
 交付前在本仓跑一遍(离线、零网络,即本命令族的本体):
 
 ```bash
-uv run leia delivery verify <checkpoint dir>          # 静态层(默认依赖)
-uv run leia delivery verify <checkpoint dir> \
+uv run beam delivery verify <checkpoint dir>          # 静态层(默认依赖)
+uv run beam delivery verify <checkpoint dir> \
   --report verify.json                                   # + 机读报告落盘
 uv sync --group load                                     # 可选:加载层重依赖
-uv run leia delivery verify <checkpoint dir>          # 含真实例化断言
+uv run beam delivery verify <checkpoint dir>          # 含真实例化断言
 ```
 
 静态层验架构类、标签语义与 tokenizer 资产;加载层(可选依赖组在场时)
@@ -119,7 +119,7 @@ MODEL_ID = os.environ.get(
 ```
 
 `COMPRESSION_MODEL_ID` 是**评测缝**,不是部署路径——宿主代码注释写明它"只为
-leia 的评测基线(issue #9 双 checkpoint 扫描)而存在、在任何部署里都不设"。
+beam 的评测基线(issue #9 双 checkpoint 扫描)而存在、在任何部署里都不设"。
 所以**部署切换 = 改默认值那一行**,保持"版本单一来源、可审计"(decisions.md
 §6 的排除项不变):
 
@@ -127,7 +127,7 @@ leia 的评测基线(issue #9 双 checkpoint 扫描)而存在、在任何部署�
  MODEL_ID = os.environ.get(
      "COMPRESSION_MODEL_ID",
 -    "microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank",
-+    # Leia v1 — local snapshot, sha256-verified (SHA256SUMS)
++    # Beam v1 — local snapshot, sha256-verified (SHA256SUMS)
 +    os.path.join(os.path.dirname(__file__), "models", "{{MODEL_TAG}}"),
  )
 ```
@@ -193,12 +193,12 @@ pub fn record_refine_tokens(compressor: &str, original_tokens: u64, refined_toke
 
 ## 4. 切换 runbook
 
-1. 落盘快照并跑 §2 的 sha256 校验(`leia delivery verify <快照目录>`
+1. 落盘快照并跑 §2 的 sha256 校验(`beam delivery verify <快照目录>`
    同步跑契约校验);
 2. 打 §3.1 的**一处** patch(3.2-3.4 只核对,不改);
 3. 冷启动 sidecar(uvicorn);
 4. `GET /health` → `{"status":"ok","compressor":true}`(false = light mode,停);
-5. stub 冒烟:本仓 `uv run leia eval run --config eval/configs/fixture.toml`
+5. stub 冒烟:本仓 `uv run beam eval run --config eval/configs/fixture.toml`
    (零网络零花费);
 6. 真链路回归:本仓 pinned harness 跑冻结评测包全量(**149 条** ≈ 600 次网关
    调用),走宿主网关的账本;
@@ -223,9 +223,9 @@ pub fn record_refine_tokens(compressor: &str, original_tokens: u64, refined_toke
 ## 6. 回归与再交付触发器
 
 回归纪律:stub 模式进宿主 CI(零成本);**影响压缩面/权重的改动**必须跑真链路
-全量(Leia 侧执行,结果摘录入 `docs/baselines/`)。
+全量(Beam 侧执行,结果摘录入 `docs/baselines/`)。
 
-再交付(Leia → refine)触发器,无触发不交付:
+再交付(Beam → refine)触发器,无触发不交付:
 
 1. 真链路回归跌破验收线;
 2. 负载分布漂移——操作化为 golden 主动扩集 + 线上聚合指标(节省率/
@@ -237,7 +237,7 @@ pub fn record_refine_tokens(compressor: &str, original_tokens: u64, refined_toke
 ## 7. 断供说明
 
 产物自包含:本地快照 + 旧模型并存,`from_pretrained(local_path)` 离线可跑。
-**Leia 项目停止不影响 refine 运行与回滚**——这是"交付物供货"优于"代码
+**Beam 项目停止不影响 refine 运行与回滚**——这是"交付物供货"优于"代码
 依赖"的地方。
 
 ## 8. 待现场确认(本仓侦察无法确定)

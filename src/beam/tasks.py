@@ -17,7 +17,7 @@ delta isolates what compression did to the payload.
 
 import hashlib
 
-from leia.golden import LOAD_TYPES
+from beam.golden import LOAD_TYPES
 
 TASK_INSTRUCTIONS: dict[str, str] = {
     "rag": (

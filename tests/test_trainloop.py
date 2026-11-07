@@ -26,9 +26,9 @@ from helpers import (  # noqa: E402
     training_word,
     write_training_dataset,
 )
-from leia.delivery import verify_checkpoint  # noqa: E402
-from leia.train import build_examples, run_training  # noqa: E402
-from leia.trainloop import fine_tune  # noqa: E402
+from beam.delivery import verify_checkpoint  # noqa: E402
+from beam.train import build_examples, run_training  # noqa: E402
+from beam.trainloop import fine_tune  # noqa: E402
 
 HYPERPARAMETERS = {
     "seed": 19, "epochs": 2, "batch_size": 2, "learning_rate": 5e-4,

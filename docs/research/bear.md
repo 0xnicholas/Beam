@@ -1,6 +1,6 @@
 # bear 深度研究(北极星参照)
 
-调研日期:2026-08-30。定位:Leia 的北极星参照文档,按项目的三个消费面
+调研日期:2026-08-30。定位:Beam 的北极星参照文档,按项目的三个消费面
 (评测方法学 → 阶段 1;query-aware 能力形态 → v2;产品化特性边界 → 防重议)
 + 版本演进考古组织。本文是 tokencamp-pro 侧
 [2026-08-29 基线调研](../../tokencamp-pro/docs/research/thetokencompany-compression.md)

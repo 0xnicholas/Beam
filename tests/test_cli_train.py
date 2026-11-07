@@ -1,4 +1,4 @@
-"""CLI surface for the training line (issue #19): `leia train run` —
+"""CLI surface for the training line (issue #19): `beam train run` —
 labeled dataset in, verified HF checkpoint + pinned run record out.
 
 Runs on default dependencies: the heavy-deps-absent path is part of the
@@ -18,8 +18,8 @@ from helpers import (
     training_row as row,
     write_training_dataset as write_dataset,
 )
-from leia.cli import main
-from leia.train import train_deps_available
+from beam.cli import main
+from beam.train import train_deps_available
 
 
 def build_args(dataset: Path, out: Path, *overrides) -> list[str]:

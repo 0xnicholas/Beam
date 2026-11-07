@@ -1,14 +1,10 @@
-# Leia
+# Beam
 
 Self-trained prompt compression: an end-to-end pipeline — corpus construction,
 teacher distillation, fine-tuning, evaluation — that produces an extractive
 compression checkpoint you can drop in as-is.
 
 **English** | [中文](README.zh-CN.md)
-
-> Renamed from **trillic** on 2026-10-13: package `src/leia`, command family
-> `leia …`, remote `0xnicholas/leia` (old links redirect). Scope and data-anchor
-> boundary in `docs/decisions.md`, decision 7.
 
 ## Overview
 
@@ -27,15 +23,15 @@ output is a strict subsequence of the input. Generative compression is
 explicitly out of scope — it would forfeit the "output is a strict subsequence"
 safety guarantee (rationale in `docs/decisions.md`).
 
-## What Leia does
+## What Beam does
 
 | Capability | Commands | In → out |
 |---|---|---|
-| Yardstick | `leia eval run` · `eval sizing` | golden set + TOML config in → immutable run directory (`metrics.json` + `report.md`) out. The only measure of "better than the public checkpoint": no yardstick, no claims. |
-| Golden sets & corpora | `leia golden *` · `leia corpus *` | golden-set schema validation and generation, LongBench split/license manifest, training-corpus construction and freeze re-validation |
-| Teacher distillation | `leia distill run` · `distill validate` | training-corpus jsonl in → labeled dataset + QC report + manifest out |
-| Training | `leia train run` | labeled dataset → HF checkpoint + run record; the artifact must pass both delivery-verify layers |
-| Delivery | `leia delivery verify` · `delivery pack` | per-rule validation against the drop-in contract; gated on a passing verify, assembles the delivery form (sha256 manifest + integration pack) |
+| Yardstick | `beam eval run` · `eval sizing` | golden set + TOML config in → immutable run directory (`metrics.json` + `report.md`) out. The only measure of "better than the public checkpoint": no yardstick, no claims. |
+| Golden sets & corpora | `beam golden *` · `beam corpus *` | golden-set schema validation and generation, LongBench split/license manifest, training-corpus construction and freeze re-validation |
+| Teacher distillation | `beam distill run` · `distill validate` | training-corpus jsonl in → labeled dataset + QC report + manifest out |
+| Training | `beam train run` | labeled dataset → HF checkpoint + run record; the artifact must pass both delivery-verify layers |
+| Delivery | `beam delivery verify` · `delivery pack` | per-rule validation against the drop-in contract; gated on a passing verify, assembles the delivery form (sha256 manifest + integration pack) |
 
 Chained together, these command families are the whole pipeline: **freeze golden
 sets and corpora → distill labels → fine-tune → evaluate → deliver**. Every
@@ -144,7 +140,7 @@ means the consumer changes code, and `delivery verify` checks them one by one:
 ## Layout
 
 ```
-src/leia/     harness and pipeline (CLI, eval, corpora, distillation, training, delivery)
+src/beam/     harness and pipeline (CLI, eval, corpora, distillation, training, delivery)
 eval/         golden sets, run configs, generated manifests, offline tiktoken/tokenizer caches
 training/     training corpora and distillation outputs, frozen manifests
 scripts/      rebuild entry points (corpus / synthetic / distill / freeze / train pilot)
@@ -162,7 +158,7 @@ training stack.
 ```bash
 uv sync                    # install dependencies
 uv run pytest              # full suite (zero network: deterministic stubs everywhere)
-uv run leia eval run \
+uv run beam eval run \
   --config eval/configs/fixture.toml \
   --golden eval/golden/fixture.jsonl \
   --out runs               # fixture mini-set (stub mode, zero network, zero cost)
@@ -174,7 +170,7 @@ Optional dependencies and dedicated environments:
 # The delivery load layer (real instantiation asserting `.bert` + offsets) needs
 # transformers + torch. The project venv deliberately has no training stack, so
 # run it from the training environment (bootstrap: scripts/train_pilot.py):
-.venv-train/bin/leia delivery verify <checkpoint dir>
+.venv-train/bin/beam delivery verify <checkpoint dir>
 
 # Training-side tests (torch fine-tune loop)
 .venv-train/bin/python -m pytest tests/test_trainloop.py

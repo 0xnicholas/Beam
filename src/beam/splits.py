@@ -8,8 +8,8 @@ Method (recorded verbatim in every generated manifest):
 
 Sorting before halving makes the assignment independent of row order in the
 source file, so a given entry always lands on the same side. Golden sets are
-built exclusively from the eval half (enforced in leia.longbench and
-re-asserted by leia.golden's split check).
+built exclusively from the eval half (enforced in beam.longbench and
+re-asserted by beam.golden's split check).
 """
 
 import hashlib

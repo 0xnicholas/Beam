@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Leia — 自训 prompt 压缩模型项目(为 tokencamp-pro 的 refine 供货)。
+Beam — 自训 prompt 压缩模型项目(为 tokencamp-pro 的 refine 供货)。
 
 ## 语言与风格
 
@@ -28,7 +28,7 @@ Leia — 自训 prompt 压缩模型项目(为 tokencamp-pro 的 refine 供货)�
 
 ### Issue tracker
 
-Issues 活在 GitHub Issues(0xnicholas/leia),技能经 `gh` CLI 读写。见
+Issues 活在 GitHub Issues(0xnicholas/beam),技能经 `gh` CLI 读写。见
   `docs/agents/issue-tracker.md`。
 
 ### Triage labels

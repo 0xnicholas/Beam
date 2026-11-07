@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>第 04 课 · 交付与接入 — Leia 学习空间</title>
+<title>第 04 课 · 交付与接入 — Beam 学习空间</title>
 <link rel="stylesheet" href="../assets/lesson.css">
 </head>
 <body>
 <main class="lesson">
 
-<p class="eyebrow">Leia 学习空间 · 第 04 课 · 面向团队</p>
+<p class="eyebrow">Beam 学习空间 · 第 04 课 · 面向团队</p>
 <h1>交付与接入：换一个权重，换回来也是一个动作</h1>
 
 <p class="lede">前三课回答「它凭什么值得信」。这一课回答团队真正会问的那句：<em>这东西怎么到我手上，装上去会发生什么，装错了怎么退回来。</em></p>
@@ -22,7 +22,7 @@
 
 <h2><span class="num">01</span>替换的实质：只换一个权重文件</h2>
 
-<p>refine 是两段式：先 <strong>compress</strong>（抽取式删词，我们的 checkpoint，2–3 毫秒），再 <strong>rewrite</strong>（网关大模型回调）。「Leia 完成后能替换 refine 吗」这句话里的「替换」，指的只是第一段。<strong>换 compress 阶段的 checkpoint 权重</strong>——没有别的含义。</p>
+<p>refine 是两段式：先 <strong>compress</strong>（抽取式删词，我们的 checkpoint，2–3 毫秒），再 <strong>rewrite</strong>（网关大模型回调）。「Beam 完成后能替换 refine 吗」这句话里的「替换」，指的只是第一段。<strong>换 compress 阶段的 checkpoint 权重</strong>——没有别的含义。</p>
 
 <p>这不是口头约定，是接口形状决定的。宿主里加载压缩模型的地方只有一处：</p>
 
@@ -59,7 +59,7 @@ MODEL_ID = os.environ.get(
     <tr><td>溯源 model card</td><td>数据从哪来、许可干不干净</td><td>手写 + 冻结 manifest 锚定（第三课）</td></tr>
     <tr><td>对照报告</td><td>凭什么说更好</td><td>冻结考卷 149 条上的验收数字</td></tr>
     <tr><td>延迟档案</td><td>会不会拖慢线上</td><td>阶段 1 双基线顺带产出；延迟闸 p95 ≤ 现网 1.2×</td></tr>
-    <tr><td>接入包</td><td>我具体要改哪儿、怎么退</td><td><code>leia delivery pack</code> 从草案渲染</td></tr>
+    <tr><td>接入包</td><td>我具体要改哪儿、怎么退</td><td><code>beam delivery pack</code> 从草案渲染</td></tr>
   </tbody>
 </table>
 
@@ -113,7 +113,7 @@ MODEL_ID = os.environ.get(
 
 <h2><span class="num">04</span>契约是可执行的门：两层、三种判定</h2>
 
-<p>清单写在文档里就只是清单；变成命令才是门。本仓的 <code>leia delivery verify &lt;checkpoint 目录&gt;</code> 把四条拆成七个检查，分两层跑：</p>
+<p>清单写在文档里就只是清单；变成命令才是门。本仓的 <code>beam delivery verify &lt;checkpoint 目录&gt;</code> 把四条拆成七个检查，分两层跑：</p>
 
 <ul>
   <li><strong>静态层（5 项，默认依赖即可）。</strong>读 <code>config.json</code> 判架构类、标签数、标签语义；读 <code>tokenizer.json</code> 判是不是 fast、能不能给出可用的 offsets。不装 torch 也能跑。</li>
@@ -122,7 +122,7 @@ MODEL_ID = os.environ.get(
 
 <p>判定有<strong>三种</strong>，不是两种：<code>PASS</code> / <code>VIOLATION</code> / <code>UNVERIFIED</code>。<strong>UNVERIFIED 永远不算 PASS</strong>——它只说实话「这次没证明」。这个区分不是洁癖：交付记录里必须能指出<em>哪一次</em>是双层 PASS，否则「验过了」就是一句空话。</p>
 
-<pre><code>$ leia delivery verify runs/train/pilot-v1/checkpoint
+<pre><code>$ beam delivery verify runs/train/pilot-v1/checkpoint
 checkpoint: runs/train/pilot-v1/checkpoint (digest 8c35908db52f…, 6 files)
 static layer: PASS (5/5 checks)
   architecture_class: PASS — architectures = ['BertForTokenClassification']
@@ -143,7 +143,7 @@ overall: PASS</code></pre>
 
 <h2><span class="num">05</span>接入包：让宿主照做即可</h2>
 
-<p>第五件产物由 <code>leia delivery pack</code> 生成，输出三件东西：</p>
+<p>第五件产物由 <code>beam delivery pack</code> 生成，输出三件东西：</p>
 
 <table>
   <thead><tr><th>文件</th><th>内容</th></tr></thead>
@@ -165,13 +165,13 @@ overall: PASS</code></pre>
 
 <p>第 3 条值得多看一眼：如果接入包里留着没替换的占位符，宿主会照着 <code>{{MODEL_TAG}}</code> 去改代码——这种错一定要在源头炸掉，而不是留给人眼在评审时发现。</p>
 
-<p>还有一个渲染细节值得先知道：<code>MODEL_ID</code> 取 <code>config.json</code> 的 <code>_name_or_path</code>，<strong>缺该字段就退回目录名</strong>；<code>MODEL_TAG</code> 再取它的 basename。也就是说<strong>暂存目录名会被直接写进 patch 与宿主的指标标签</strong>。2026-10-14 实测：pilot 产物正好缺这个字段，渲染出的标签是 <code>checkpoint</code>，注入路径会变成 <code>models/checkpoint</code>。交付前把暂存目录命名为 <code>leia-v1</code>，或在导出时写入 <code>_name_or_path</code>。</p>
+<p>还有一个渲染细节值得先知道：<code>MODEL_ID</code> 取 <code>config.json</code> 的 <code>_name_or_path</code>，<strong>缺该字段就退回目录名</strong>；<code>MODEL_TAG</code> 再取它的 basename。也就是说<strong>暂存目录名会被直接写进 patch 与宿主的指标标签</strong>。2026-10-14 实测：pilot 产物正好缺这个字段，渲染出的标签是 <code>checkpoint</code>，注入路径会变成 <code>models/checkpoint</code>。交付前把暂存目录命名为 <code>beam-v1</code>，或在导出时写入 <code>_name_or_path</code>。</p>
 
 <p><strong>传输与回滚素材是一件事。</strong>走私有 HF 仓下载到目标机，落成<strong>本地快照</strong> + 逐文件哈希清单；此后运行时不再依赖 HF 的可达性与凭据。<strong>旧快照目录原地不删</strong>——它本身就是回滚素材。断网能启动、旧版本还在，这两条一起构成了「回滚是个动作，不是一个项目」。</p>
 
 <h2><span class="num">06</span>供货：触发式，不是一次性</h2>
 
-<p>Leia 与 refine 的关系定位是<strong>供货</strong>：交付自包含的产物（权重快照），既不是代码依赖，也不是一个服务。既然是供货，就要说清「什么时候再供一次」——四个触发器，<strong>无触发不交付</strong>：</p>
+<p>Beam 与 refine 的关系定位是<strong>供货</strong>：交付自包含的产物（权重快照），既不是代码依赖，也不是一个服务。既然是供货，就要说清「什么时候再供一次」——四个触发器，<strong>无触发不交付</strong>：</p>
 
 <ol class="steps">
   <li><strong>真链路回归跌破验收线。</strong>换权重或影响压缩面的改动之后，必须跑真链路全量（149 条 ≈ 600 次网关调用），结果摘录入本仓归档。</li>
@@ -180,7 +180,7 @@ overall: PASS</code></pre>
   <li><strong>v2（query-aware）作为独立能力线立项。</strong>它换的不只是权重，还有接口，属于另一次交付。</li>
 </ol>
 
-<p>还有一条容易被忽略但很重要的性质：<strong>断供不等于断服务</strong>。产物自包含（本地快照 + 旧模型并存，<code>from_pretrained(本地路径)</code> 离线可跑），所以 <em>Leia 项目停下来，不影响 refine 的运行与回滚</em>。这正是「交付物供货」优于「代码依赖」的地方——依赖会腐烂，快照不会。</p>
+<p>还有一条容易被忽略但很重要的性质：<strong>断供不等于断服务</strong>。产物自包含（本地快照 + 旧模型并存，<code>from_pretrained(本地路径)</code> 离线可跑），所以 <em>Beam 项目停下来，不影响 refine 的运行与回滚</em>。这正是「交付物供货」优于「代码依赖」的地方——依赖会腐烂，快照不会。</p>
 
 <div class="quiz" data-multi="true">
   <p class="quiz-q">哪些属于「再交付」的触发器？（选出所有正确项）</p>
@@ -197,7 +197,7 @@ overall: PASS</code></pre>
 <p>切换手册的价值在于<strong>把「看起来生效了」和「确实生效了」分开</strong>。压缩默认关闭、fail-open 又会把故障都吞掉，所以「没报错」什么都证明不了。步骤顺序就是为此排的：</p>
 
 <ol class="steps">
-  <li><strong>落盘快照并校验哈希。</strong>同时跑 <code>leia delivery verify</code> 过契约。</li>
+  <li><strong>落盘快照并校验哈希。</strong>同时跑 <code>beam delivery verify</code> 过契约。</li>
   <li><strong>打接入包里的 patch。</strong>改动被刻意限制在很少的几处，其余文件一行不动。</li>
   <li><strong>冷启动 sidecar</strong>，然后 <code>GET /health</code>。<code>{"status":"ok","compressor":true}</code> 才继续；<code>false</code> 意味着 light mode（只有 rewrite 在跑），<strong>停下来查</strong>。</li>
   <li><strong>stub 冒烟。</strong>本仓的 fixture 配置，零网络零花费，验的是接线不是质量。</li>
@@ -235,7 +235,7 @@ overall: PASS</code></pre>
     </tr>
     <tr>
       <td>加载路径要能指向本地快照</td>
-      <td><strong>有缝了，但不是部署路径。</strong><code>compressor.py:16</code> 读环境变量 <code>COMPRESSION_MODEL_ID</code>，但代码注释写明它<em>只为 leia 的评测基线而存在、在任何部署里都不设</em>。产出切换仍然落在把 <code>MODEL_ID</code> 的默认值指到快照目录那一行</td>
+      <td><strong>有缝了，但不是部署路径。</strong><code>compressor.py:16</code> 读环境变量 <code>COMPRESSION_MODEL_ID</code>，但代码注释写明它<em>只为 beam 的评测基线而存在、在任何部署里都不设</em>。产出切换仍然落在把 <code>MODEL_ID</code> 的默认值指到快照目录那一行</td>
     </tr>
   </tbody>
 </table>
@@ -255,13 +255,13 @@ overall: PASS</code></pre>
   <h3>记住这三句就够用</h3>
   <ol>
     <li><strong>替换 = 只换 compress 阶段的权重。</strong>rewrite、协议、头、fail-open、guardrail 全不动；影响面 = 显式开了压缩的那些工作区。</li>
-    <li><strong>契约四条是四行代码，不是一个形容词。</strong>标签语义、fast tokenizer、<code>.bert</code>、同架构基底——每条都能指到宿主的一行；<code>leia delivery verify</code> 把它变成两层七项、三种判定的可执行门。</li>
-    <li><strong>持平 = 不替换；断供 ≠ 断服务。</strong>验收判据是合取（CI 下界 ≥ 0 <em>且</em>有一项显著提升）；产物自包含，Leia 停下来不影响 refine 继续跑、回滚。</li>
+    <li><strong>契约四条是四行代码，不是一个形容词。</strong>标签语义、fast tokenizer、<code>.bert</code>、同架构基底——每条都能指到宿主的一行；<code>beam delivery verify</code> 把它变成两层七项、三种判定的可执行门。</li>
+    <li><strong>持平 = 不替换；断供 ≠ 断服务。</strong>验收判据是合取（CI 下界 ≥ 0 <em>且</em>有一项显著提升）；产物自包含，Beam 停下来不影响 refine 继续跑、回滚。</li>
   </ol>
 </div>
 
 <h3>不看上文，写一遍</h3>
-<p>同事（宿主侧的工程师）问你：「Leia 做完之后，refine 那边要改什么？」用四句话回答。其中一句必须提到<strong>回滚</strong>，还有一句必须提到<strong>你怎么证明切换成功了</strong>。</p>
+<p>同事（宿主侧的工程师）问你：「Beam 做完之后，refine 那边要改什么？」用四句话回答。其中一句必须提到<strong>回滚</strong>，还有一句必须提到<strong>你怎么证明切换成功了</strong>。</p>
 
 <div class="recall" data-key="lesson-0004:what-does-host-change">
   <textarea placeholder="1. …&#10;2. …&#10;3. …&#10;4. …"></textarea>
@@ -277,7 +277,7 @@ overall: PASS</code></pre>
 <h3>主读物（一课一份）</h3>
 <ul>
   <li><code>docs/delivery/refine-integration.md</code> — 接入包草案本体。它同时是 <code>delivery pack</code> 的渲染源，读到占位符不要慌，那正是它还没被渲染的样子（注意里面 2026-09-11 的行号已漂）。</li>
-  <li><code>src/leia/delivery.py</code> 的模块 docstring — 七项检查与三种判定的最紧凑表述，五分钟读完，比任何二手转述都准。</li>
+  <li><code>src/beam/delivery.py</code> 的模块 docstring — 七项检查与三种判定的最紧凑表述，五分钟读完，比任何二手转述都准。</li>
   <li>宿主 <code>sidecars/refine/compressor.py:10–52</code> — <code>MODEL_ID</code> 与 <code>model_label_for</code>。这是「换一个权重」在代码里真正的样子。</li>
 </ul>
 

@@ -11,7 +11,7 @@ import random
 
 import pytest
 
-from leia.bootstrap import (
+from beam.bootstrap import (
     METHOD,
     BootstrapError,
     BootstrapResult,

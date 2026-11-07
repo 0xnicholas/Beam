@@ -2,7 +2,7 @@
 
 import pytest
 
-from leia.config import ConfigError, RunConfig, load_config
+from beam.config import ConfigError, RunConfig, load_config
 
 
 def write_config(tmp_path, text):

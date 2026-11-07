@@ -23,7 +23,7 @@ from pathlib import Path
 import pytest
 from tokenizers import Tokenizer, models, normalizers, pre_tokenizers
 
-from leia.native_tokens import (
+from beam.native_tokens import (
     SentencePieceCounter,
     WhitespaceCounter,
     WordPieceCounter,

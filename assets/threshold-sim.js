@@ -11,7 +11,7 @@
      <script src="../assets/data/trace-zh.js"></script>
      <script src="../assets/threshold-sim.js"></script>
      <script>
-       ThresholdSim.mount(document.getElementById("sim-1"), window.LEIA_TRACE_ZH, {
+       ThresholdSim.mount(document.getElementById("sim-1"), window.BEAM_TRACE_ZH, {
          levels: [0.1, 0.2, 0.3, 0.4, 0.5],   // optional
          initial: 0.2,                         // optional
          title: "…"                            // optional

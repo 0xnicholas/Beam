@@ -11,7 +11,7 @@ import json
 import httpx
 import pytest
 
-from leia.clients.sidecar import (
+from beam.clients.sidecar import (
     HttpRefineClient,
     RefineError,
     RefineResult,

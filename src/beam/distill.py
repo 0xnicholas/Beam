@@ -24,9 +24,9 @@ Deviations from the reference implementation, recorded in every manifest:
   prompt blocks have no sentence punctuation; the paper's own rule --
   "ends with a period" -- only fits its Wikipedia/MeetingBank corpus).
 
-Billing/resume posture (mirrors leia.resume, issue #8): the gateway
+Billing/resume posture (mirrors beam.resume, issue #8): the gateway
 teacher is the billing surface. One journal line is appended per FRESH
-compressed chunk (reusing leia.resume.CallJournal), keyed by the
+compressed chunk (reusing beam.resume.CallJournal), keyed by the
 content-addressed ledger id (corpus bytes + teacher model + prompt sha +
 chunking params). A killed run's rerun replays journaled chunks and pays
 only for the ones it never recorded — zero duplicate gateway calls for
@@ -42,10 +42,10 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from leia.clients.gateway import GatewayClient
-from leia.quality import percentile, rounded_mean
-from leia.resume import CallJournal
-from leia.tokens import TokenCounter
+from beam.clients.gateway import GatewayClient
+from beam.quality import percentile, rounded_mean
+from beam.resume import CallJournal
+from beam.tokens import TokenCounter
 
 __all__ = [
     "DistillError",
@@ -896,7 +896,7 @@ def run_distillation(
             "labels via sliding-window fuzzy matching -> VR/AG quality control"
         ),
         "generated_by": {
-            "tool": "leia.distill",
+            "tool": "beam.distill",
             "repo_commit": repo_commit,
             "repo_dirty": repo_dirty,
         },
@@ -1402,7 +1402,7 @@ def build_freeze_record(
         "kind": "training-set-freeze",
         "role": FREEZE_ROLE,
         "generated_by": {
-            "tool": "leia.distill",
+            "tool": "beam.distill",
             "repo_commit": repo_commit,
             "repo_dirty": repo_dirty,
         },

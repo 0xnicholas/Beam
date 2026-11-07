@@ -26,14 +26,14 @@ import subprocess
 import sys
 from pathlib import Path
 
-from leia.clients.gateway import HttpGatewayClient
-from leia.distill import (
+from beam.clients.gateway import HttpGatewayClient
+from beam.distill import (
     chunk_text,
     load_corpus_rows,
     run_distillation,
     select_entries,
 )
-from leia.tokens import TokenCounter
+from beam.tokens import TokenCounter
 
 REPO = Path(__file__).resolve().parents[1]
 

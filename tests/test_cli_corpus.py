@@ -1,4 +1,4 @@
-"""`leia corpus *` CLI: build (train-half extraction + manifest) and
+"""`beam corpus *` CLI: build (train-half extraction + manifest) and
 validate (schema / MeetingBank / train half / registry / golden overlap).
 
 External behavior only: argv in, files + stdout/stderr + exit codes out.
@@ -7,10 +7,10 @@ External behavior only: argv in, files + stdout/stderr + exit codes out.
 import json
 from pathlib import Path
 
-from leia.cli import main
-from leia.longbench import build_manifest
-from leia.splits import row_fingerprint, split_half_rows
-from leia.longbench import load_subset_rows
+from beam.cli import main
+from beam.longbench import build_manifest
+from beam.splits import row_fingerprint, split_half_rows
+from beam.longbench import load_subset_rows
 
 GOLDEN_SOURCE = {
     "dataset": "handwritten",

@@ -8,15 +8,15 @@ from pathlib import Path
 
 import pytest
 
-from leia.golden import load_golden
-from leia.longbench import (
+from beam.golden import load_golden
+from beam.longbench import (
     build_manifest,
     build_rag_entries,
     derive_key_points,
     load_subset_rows,
     render_prompt,
 )
-from leia.splits import row_fingerprint, split_half_rows
+from beam.splits import row_fingerprint, split_half_rows
 
 
 class TestLoadSubsetRows:

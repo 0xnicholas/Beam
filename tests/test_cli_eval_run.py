@@ -1,4 +1,4 @@
-"""Main seam: `leia eval run` as a black box.
+"""Main seam: `beam eval run` as a black box.
 
 CLI in (config + golden), files out (run directory). The sidecar runs in
 stub mode, so the whole flow is deterministic and zero-network. Expected
@@ -14,10 +14,10 @@ import json
 import pytest
 import tiktoken
 
-from leia import __version__
-from leia.cli import main
-from leia.judge import rubric_sha256
-from leia.tasks import TASK_INSTRUCTIONS
+from beam import __version__
+from beam.cli import main
+from beam.judge import rubric_sha256
+from beam.tasks import TASK_INSTRUCTIONS
 
 ENCODING = tiktoken.get_encoding("cl100k_base")
 
@@ -102,7 +102,7 @@ class TestEvalRunHappyPath:
         assert "fixture" in self.run_dir.name
 
     def test_metrics_pin_harness_version(self):
-        assert self.metrics["harness"]["name"] == "leia"
+        assert self.metrics["harness"]["name"] == "beam"
         assert self.metrics["harness"]["version"] == __version__
 
     def test_metrics_embed_config_snapshot(self, fixture_config_path):
@@ -190,7 +190,7 @@ class TestEvalRunHappyPath:
         """fact recall + token F0.5 on every item, consistent with the
         pure functions (stub compression drops words, so recall < 1 is
         expected on fact-bearing prompts)."""
-        from leia.quality import fact_recall, text_token_f05
+        from beam.quality import fact_recall, text_token_f05
 
         for item, row in zip(self.level["items"], self.golden_rows):
             assert item["fact_recall"] == round(
@@ -250,10 +250,10 @@ class TestEvalRunHappyPath:
         """Hand-check wiring: recompute original/compressed scores, deltas,
         means, and the CI straight from the stubs, compare against
         metrics.json — the E2E numbers are pinned, not just structural."""
-        from leia.bootstrap import paired_bootstrap_ci
-        from leia.clients.gateway import StubGatewayClient as StubGW
-        from leia.judge import mechanical_coverage_score, score_of
-        from leia.tasks import task_prompt
+        from beam.bootstrap import paired_bootstrap_ci
+        from beam.clients.gateway import StubGatewayClient as StubGW
+        from beam.judge import mechanical_coverage_score, score_of
+        from beam.tasks import task_prompt
 
         stub_gw = StubGW()
 

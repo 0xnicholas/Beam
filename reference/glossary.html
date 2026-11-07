@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>术语表 — Leia 学习空间</title>
+<title>术语表 — Beam 学习空间</title>
 <link rel="stylesheet" href="../assets/lesson.css">
 </head>
 <body>
 <main class="doc">
 
-<p class="eyebrow">Leia 学习空间 · 参考</p>
+<p class="eyebrow">Beam 学习空间 · 参考</p>
 <h1>压缩术语表</h1>
 <p class="lede">这套词汇表在每一课里保持一致。中文是工作语言，英文是代码与论文里的原名——两者一一对应。</p>
 <p class="meta"><span>维护：新增术语只在本页登记，课文里出现的词必须能在这里查到</span></p>
@@ -75,7 +75,7 @@
 
   <dt>数据蒸馏<span class="en">data distillation</span></dt>
   <dd>把教师模型的压缩行为变成训练标签的五步管线：切块 → 教师压缩 → 滑窗模糊匹配 → 质控 → 微调。本项目的核心方法继承自 LLMLingua-2。
-    <span class="src">src/leia/distill.py · docs/data-strategy.md</span>
+    <span class="src">src/beam/distill.py · docs/data-strategy.md</span>
   </dd>
 
   <dt>教师<span class="en">teacher</span></dt>
@@ -145,7 +145,7 @@
   <dt>drop-in 契约<span class="en">drop-in contract</span></dt>
   <dd>一个 checkpoint 能否替换压缩阶段的<strong>四条硬性条件</strong>：① <code>architectures</code> 含 <code>BertForTokenClassification</code>、<code>num_labels=2</code>、<code>id2label</code> = {0: drop, 1: keep}（宿主按<em>位置</em>读第 1 列当保留概率）；② tokenizer 必须是 fast（force-keep 靠 offsets 定位事实）；③ 模型类暴露 <code>.bert</code>（<code>refiner.py:338</code> 直调）；④ 与现网同架构基底。任何一条不满足，宿主就得改代码——那就不再是「替换权重」。
     <span class="avoid">别说：兼容性要求（它指的是这四条可执行的检查）</span>
-    <span class="src">docs/decisions.md §6 · src/leia/delivery.py</span>
+    <span class="src">docs/decisions.md §6 · src/beam/delivery.py</span>
   </dd>
 
   <dt>静态层 / 加载层</dt>
@@ -175,7 +175,7 @@
   </dd>
 
   <dt>供货<span class="en">supply</span></dt>
-  <dd>Leia → refine 的关系定位：交付自包含产物（权重快照），<strong>不是代码依赖也不是服务</strong>。再交付由触发器驱动，无触发不交付。
+  <dd>Beam → refine 的关系定位：交付自包含产物（权重快照），<strong>不是代码依赖也不是服务</strong>。再交付由触发器驱动，无触发不交付。
     <span class="avoid">别说：上游依赖、集成</span>
     <span class="src">CONTEXT.md</span>
   </dd>
@@ -186,7 +186,7 @@
   </dd>
 
   <dt>断供<span class="en">supply cutoff</span></dt>
-  <dd>Leia 项目停止供应的情形。因为产物自包含（本地快照 + 旧模型并存、可离线加载），<strong>断供不影响 refine 的运行与回滚</strong>——这是「交付物供货」优于「代码依赖」的地方。
+  <dd>Beam 项目停止供应的情形。因为产物自包含（本地快照 + 旧模型并存、可离线加载），<strong>断供不影响 refine 的运行与回滚</strong>——这是「交付物供货」优于「代码依赖」的地方。
     <span class="src">docs/delivery/refine-integration.md §7</span>
   </dd>
 

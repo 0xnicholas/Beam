@@ -23,8 +23,8 @@ from pathlib import Path
 
 import pytest
 
-from leia.golden import load_golden
-from leia.dialogue import (
+from beam.golden import load_golden
+from beam.dialogue import (
     FACT_TYPES,
     DialogueError,
     build_dialogue_entries,

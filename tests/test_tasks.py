@@ -9,8 +9,8 @@ the compression.
 
 import pytest
 
-from leia.golden import GoldenItem
-from leia.tasks import TASK_INSTRUCTIONS, task_prompt
+from beam.golden import GoldenItem
+from beam.tasks import TASK_INSTRUCTIONS, task_prompt
 
 SOURCE = {
     "dataset": "synthetic",

@@ -5,7 +5,7 @@
 # 种子分流). Multi-turn conversation history has no public dataset to draw
 # from: five families below are ported from the old repo's generator
 # (0xnicholas/tokencamp compression/eval/conversation_gen.py, same author)
-# and five are new, all handwritten in src/leia/dialogue.py; entries are
+# and five are new, all handwritten in src/beam/dialogue.py; entries are
 # synthesized by seeded slot variation.
 #
 # Split discipline: every family owns two DISJOINT integer seed ranges.
@@ -22,7 +22,7 @@
 # and low-diversity families simply contribute fewer entries. Eval seeds
 # remain 101-110, untouched.
 #
-# `leia golden manifest-dialogue` merges this registry with the frozen
+# `beam golden manifest-dialogue` merges this registry with the frozen
 # golden set into eval/manifests/dialogue.json. Edit here, regenerate there.
 #
 # fact_types vocabulary: "name" (people/companies/systems), "date"

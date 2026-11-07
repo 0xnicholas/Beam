@@ -1,13 +1,9 @@
-# Leia
+# Beam
 
 **中文** | [English](README.md)
 
 自训 prompt 压缩模型项目:从语料构造、teacher 蒸馏到微调与评测的完整链路,
 产出可直接替换压缩环节的抽取式 checkpoint。
-
-> 2026-10-13 由 **trillic** 更名 **leia**(包名 `src/leia`、命令族 `leia …`、
-> 远程仓 `0xnicholas/leia`);旧链接由 GitHub 重定向承接。范围与数据锚边界
-> 见 `docs/decisions.md` 定案 7。
 
 ## 概览
 
@@ -21,15 +17,15 @@
 **方法族** — 抽取式压缩:只删不改,输出是输入的严格子序列。明确不做生成式压缩
 ——那会废掉压缩环节"输出严格子序列"的安全保证(理由见 `docs/decisions.md`)。
 
-## Leia 的作用
+## Beam 的作用
 
 | 能力面 | 命令族 | 做什么 |
 |---|---|---|
-| 验收尺 | `leia eval run` · `eval sizing` | golden 集 + TOML 配置进 → 不可变 run 目录(`metrics.json` + `report.md`)出;是"微调后优于公开 checkpoint"的唯一度量,没有它不许声称赢 |
-| golden 与语料 | `leia golden *` · `leia corpus *` | golden 集 schema 校验与生成、LongBench 切分/许可 manifest、训练语料构造与冻结再校验 |
-| teacher 蒸馏 | `leia distill run` · `distill validate` | 训练语料 jsonl 进 → 带标签数据集 + 质控报告 + manifest 出 |
-| 训练 | `leia train run` | 带标签数据集 → HF checkpoint + run record;产物必须过 delivery verify 两层才算成功 |
-| 交付 | `leia delivery verify` · `delivery pack` | 按 drop-in 契约逐条校验候选 checkpoint;以校验通过为闸装配交付形态(sha256 清单 + 接入包) |
+| 验收尺 | `beam eval run` · `eval sizing` | golden 集 + TOML 配置进 → 不可变 run 目录(`metrics.json` + `report.md`)出;是"微调后优于公开 checkpoint"的唯一度量,没有它不许声称赢 |
+| golden 与语料 | `beam golden *` · `beam corpus *` | golden 集 schema 校验与生成、LongBench 切分/许可 manifest、训练语料构造与冻结再校验 |
+| teacher 蒸馏 | `beam distill run` · `distill validate` | 训练语料 jsonl 进 → 带标签数据集 + 质控报告 + manifest 出 |
+| 训练 | `beam train run` | 带标签数据集 → HF checkpoint + run record;产物必须过 delivery verify 两层才算成功 |
+| 交付 | `beam delivery verify` · `delivery pack` | 按 drop-in 契约逐条校验候选 checkpoint;以校验通过为闸装配交付形态(sha256 清单 + 接入包) |
 
 上表各命令族串起来即完整链路:**golden/语料冻结 → 蒸馏标注 → 微调 → 评测 → 交付**;
 每一步的产物都带内容寻址与溯源,漂移由校验器拒绝而非人工比对。
@@ -109,7 +105,7 @@
 ## 目录结构
 
 ```
-src/leia/     harness 与管线(CLI、评测、语料、蒸馏、训练、交付)
+src/beam/     harness 与管线(CLI、评测、语料、蒸馏、训练、交付)
 eval/         golden 集、run 配置、生成 manifest、离线 tiktoken/tokenizer 缓存
 training/     训练语料与蒸馏产物、冻结 manifest
 scripts/      重建入口(语料 / 合成 / 蒸馏 / 冻结 / 训练 pilot)
@@ -126,7 +122,7 @@ tiktoken、tokenizers(测试用 pytest),不含训练栈。
 ```bash
 uv sync                    # 安装依赖
 uv run pytest              # 全量测试(零网络:上下游用确定性假桩)
-uv run leia eval run \
+uv run beam eval run \
   --config eval/configs/fixture.toml \
   --golden eval/golden/fixture.jsonl \
   --out runs               # 跑 fixture 迷你集(stub 模式,零网络零花费)
@@ -137,7 +133,7 @@ uv run leia eval run \
 ```bash
 # delivery verify 加载层(真实例化断言 `.bert` + offsets)需要 transformers + torch;
 # 项目 venv 刻意不含训练栈,用训练环境跑即可(自举见 scripts/train_pilot.py):
-.venv-train/bin/leia delivery verify <checkpoint dir>
+.venv-train/bin/beam delivery verify <checkpoint dir>
 
 # 训练侧测试(torch 微调回路)
 .venv-train/bin/python -m pytest tests/test_trainloop.py

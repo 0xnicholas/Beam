@@ -11,7 +11,7 @@ Writes training/manifests/training-set-v1.json pinning:
 
 The distill output is validated BEFORE the record is written (a broken or
 drifted artifact refuses to freeze), and re-validated against the written
-record afterwards (`leia distill validate ... --freeze ...` is the
+record afterwards (`beam distill validate ... --freeze ...` is the
 standing checker — stage 3 asserts against this record before every
 acceptance attempt's training run).
 
@@ -23,7 +23,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from leia.distill import (
+from beam.distill import (
     DistillError,
     build_freeze_record,
     collect_distill_errors,

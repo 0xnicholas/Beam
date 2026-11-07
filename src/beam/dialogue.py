@@ -1329,7 +1329,7 @@ def build_dialogue_manifest(
     manifest = {
         "schema_version": 1,
         "method": (
-            "multi-turn conversation templates (src/leia/dialogue.py — five "
+            "multi-turn conversation templates (src/beam/dialogue.py — five "
             "families ported from 0xnicholas/tokencamp "
             "compression/eval/conversation_gen.py, same author, five new) + "
             "seeded slot synthesis; prompt = user/assistant history + final "

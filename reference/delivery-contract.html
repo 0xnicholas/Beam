@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>交付与接入速查 — Leia 学习空间</title>
+<title>交付与接入速查 — Beam 学习空间</title>
 <link rel="stylesheet" href="../assets/lesson.css">
 </head>
 <body>
 <main class="doc">
 
-<p class="eyebrow">Leia 学习空间 · 参考</p>
+<p class="eyebrow">Beam 学习空间 · 参考</p>
 <h1>交付与接入速查</h1>
 <p class="lede">替换的边界、契约四条、产物包五件、切换与回滚——评审或接入前扫一眼的那一页。</p>
 <p class="meta"><span>宿主坐标复核于 2026-10-14（tokencamp-pro HEAD <code>6b03be5</code>）· 本页与 <a href="../lessons/0004-delivery-and-integration.html">第 04 课</a> 同源</span></p>
@@ -89,9 +89,9 @@
   <tbody>
     <tr><td>checkpoint</td><td>HF 格式，与 LLMLingua-2 同接口</td><td>训练产物 + <code>delivery verify</code> 双层 PASS</td></tr>
     <tr><td>溯源 model card</td><td>基底许可、各子集许可与用途、合成数据声明、MeetingBank 排除声明</td><td>手写，锚在冻结 manifest 上</td></tr>
-    <tr><td>对照报告</td><td>冻结 golden 149 条上的验收数字</td><td><code>leia eval run</code> 归档</td></tr>
+    <tr><td>对照报告</td><td>冻结 golden 149 条上的验收数字</td><td><code>beam eval run</code> 归档</td></tr>
     <tr><td>延迟档案</td><td>compress p95，按 checkpoint、按档位</td><td>阶段 1 双基线顺带产出；<strong>延迟闸 p95 ≤ 现网 1.2×</strong></td></tr>
-    <tr><td>接入包</td><td>契约校验清单 + 宿主 patch + 切换/观察/回滚 runbook + 非差异清单</td><td><code>leia delivery pack</code> 从草案渲染</td></tr>
+    <tr><td>接入包</td><td>契约校验清单 + 宿主 patch + 切换/观察/回滚 runbook + 非差异清单</td><td><code>beam delivery pack</code> 从草案渲染</td></tr>
   </tbody>
 </table>
 
@@ -117,7 +117,7 @@
 
 <p><strong>目标机形态</strong>：私有 HF 仓 → 本地快照 <code>sidecars/refine/models/&lt;model-tag&gt;/</code> + <code>SHA256SUMS</code>；运行时不再依赖 HF 可达性与凭据。<strong>旧快照原地不删</strong>——它就是回滚素材。</p>
 
-<p><strong>标签从哪来（打包前必看）</strong>：渲染时 <code>MODEL_ID</code> 取 <code>config.json</code> 的 <code>_name_or_path</code>，缺该字段就退回<strong>目录名</strong>，<code>MODEL_TAG</code> 再取它的 basename——<strong>暂存目录名会被直接写进宿主 patch 与指标标签</strong>。交付前把暂存目录命名为 <code>leia-v1</code>（或导出时写入 <code>_name_or_path</code>）。2026-10-14 实测：pilot 产物缺该字段，渲染出的标签是 <code>checkpoint</code>，注入路径会变成 <code>models/checkpoint</code>。</p>
+<p><strong>标签从哪来（打包前必看）</strong>：渲染时 <code>MODEL_ID</code> 取 <code>config.json</code> 的 <code>_name_or_path</code>，缺该字段就退回<strong>目录名</strong>，<code>MODEL_TAG</code> 再取它的 basename——<strong>暂存目录名会被直接写进宿主 patch 与指标标签</strong>。交付前把暂存目录命名为 <code>beam-v1</code>（或导出时写入 <code>_name_or_path</code>）。2026-10-14 实测：pilot 产物缺该字段，渲染出的标签是 <code>checkpoint</code>，注入路径会变成 <code>models/checkpoint</code>。</p>
 
 <h2><span class="num">5</span>切换与回滚 runbook</h2>
 
@@ -151,18 +151,18 @@
   </tbody>
 </table>
 
-<p><strong>无触发不交付。断供 ≠ 断服务</strong>：产物自包含（本地快照 + 旧模型并存，<code>from_pretrained(本地路径)</code> 离线可跑），Leia 停止不影响 refine 运行与回滚。</p>
+<p><strong>无触发不交付。断供 ≠ 断服务</strong>：产物自包含（本地快照 + 旧模型并存，<code>from_pretrained(本地路径)</code> 离线可跑），Beam 停止不影响 refine 运行与回滚。</p>
 
 <h2><span class="num">7</span>命令速查</h2>
 
 <pre><code># 契约校验：两层七项，三种判定（PASS / VIOLATION / UNVERIFIED）
-uv run leia delivery verify &lt;checkpoint 目录&gt;
-uv run leia delivery verify &lt;checkpoint 目录&gt; --report verify.json
-uv run leia delivery verify &lt;checkpoint 目录&gt; --static-only    # 跳加载层
+uv run beam delivery verify &lt;checkpoint 目录&gt;
+uv run beam delivery verify &lt;checkpoint 目录&gt; --report verify.json
+uv run beam delivery verify &lt;checkpoint 目录&gt; --static-only    # 跳加载层
 uv sync --group load                                          # 打开加载层（torch + transformers）
 
 # 打包：verify 不过则拒绝；输出目录必须不存在
-uv run leia delivery pack &lt;checkpoint 目录&gt; --out &lt;输出目录&gt;
+uv run beam delivery pack &lt;checkpoint 目录&gt; --out &lt;输出目录&gt;
 
 # 目标机落盘后
 shasum -a 256 -c SHA256SUMS</code></pre>

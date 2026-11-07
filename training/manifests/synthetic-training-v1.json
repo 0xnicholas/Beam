@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "method": "shared scenario-family generators (src/leia/sysprompt.py + src/leia/dialogue.py), train-seed side of the split: same templates and seeded slot machinery as golden, train seeds only (硬约束 4: 场景族/种子分流 — both sides' guards raise on the other's seeds)",
+  "method": "shared scenario-family generators (src/beam/sysprompt.py + src/beam/dialogue.py), train-seed side of the split: same templates and seeded slot machinery as golden, train seeds only (硬约束 4: 场景族/种子分流 — both sides' guards raise on the other's seeds)",
   "entry_id_rule": "sys-<family>-s<seed> / dlg-<family>-s<seed> (seed embeds the train-domain seed)",
   "rng": "random.Random(int.from_bytes(sha256('<family>:<seed>')[:8]))",
   "content_addressing": "sha1(prompt)",
@@ -10,7 +10,7 @@
     "dialogue": 350
   },
   "generated_by": {
-    "tool": "leia.synthetic",
+    "tool": "beam.synthetic",
     "repo_commit": "3499c0ed36f5f3f7b91c17ecfd0210e0d123cc96",
     "repo_dirty": false
   },

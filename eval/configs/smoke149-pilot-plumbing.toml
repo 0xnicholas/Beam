@@ -14,7 +14,7 @@
 #   cd ../tokencamp-pro/sidecars/refine && \
 #   COMPRESSION_MODEL_ID=<repo>/runs/train/pilot-v1/checkpoint \
 #     .venv/bin/uvicorn server:app --host 127.0.0.1 --port 9797
-# then: leia eval run --config eval/configs/smoke149-pilot-plumbing.toml \
+# then: beam eval run --config eval/configs/smoke149-pilot-plumbing.toml \
 #        --golden eval/golden/{rag,sysprompt,dialogue}_{pilot,scaled}.jsonl
 
 name = "smoke149-pilot-plumbing"

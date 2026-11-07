@@ -14,14 +14,14 @@ from pathlib import Path
 
 import pytest
 
-from leia.corpus import (
+from beam.corpus import (
     CorpusError,
     build_training_entries,
     build_training_manifest,
     collect_corpus_errors,
 )
-from leia.longbench import build_manifest, load_subset_rows
-from leia.splits import row_fingerprint, split_half_rows
+from beam.longbench import build_manifest, load_subset_rows
+from beam.splits import row_fingerprint, split_half_rows
 
 
 def make_longbench_manifest(subsets_toml: Path, data_dir: Path) -> dict:

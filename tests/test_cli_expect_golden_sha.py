@@ -1,4 +1,4 @@
-"""`leia eval run --expect-golden-sha` — frozen-reference assertion
+"""`beam eval run --expect-golden-sha` — frozen-reference assertion
 (issue #12).
 
 The host calls the frozen evaluation package via a pinned ref; if the
@@ -13,7 +13,7 @@ import json
 
 import pytest
 
-from leia.cli import main
+from beam.cli import main
 
 
 def golden_sha(path) -> str:

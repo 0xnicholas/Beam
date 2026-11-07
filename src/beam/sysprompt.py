@@ -604,7 +604,7 @@ def build_sysprompt_manifest(
     manifest = {
         "schema_version": 1,
         "method": (
-            "handwritten scenario-family templates (src/leia/sysprompt.py) + "
+            "handwritten scenario-family templates (src/beam/sysprompt.py) + "
             "seeded slot synthesis; per-family DISJOINT eval/train integer seed "
             "ranges in sysprompt_families.toml are the split authority — golden "
             "draws from eval seeds only; the phase-2 training side will reuse "

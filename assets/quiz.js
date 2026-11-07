@@ -1,5 +1,5 @@
 /* ==========================================================================
-   quiz.js — reusable retrieval-practice widgets for Leia lessons.
+   quiz.js — reusable retrieval-practice widgets for Beam lessons.
    Vanilla JS, no dependencies, works from file://.
 
    Markup contracts (all optional; auto-initialised on DOMContentLoaded):
@@ -120,7 +120,7 @@
     var ta = box.querySelector("textarea");
     var btn = box.querySelector(".recall-btn");
     var ans = box.querySelector(".recall-answer");
-    var key = "leia-recall:" + (box.dataset.key || "item-" + index);
+    var key = "beam-recall:" + (box.dataset.key || "item-" + index);
 
     if (ta) {
       var saved = store.get(key);
@@ -157,5 +157,5 @@
     init();
   }
 
-  window.LeiaQuiz = { init: init };
+  window.BeamQuiz = { init: init };
 })();

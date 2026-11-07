@@ -53,7 +53,7 @@ TRAIN_REQUIREMENTS = (
     "transformers==4.57.6",  # matches the sidecar (the smoke loads our output)
     "numpy<2",               # torch 2.2.2 is compiled against numpy 1.x
     "pytest",
-    "httpx", "tiktoken", "tokenizers>=0.20",  # leia runtime deps
+    "httpx", "tiktoken", "tokenizers>=0.20",  # beam runtime deps
 )
 
 
@@ -134,7 +134,7 @@ def main() -> int:
     _check_dataset_frozen()
     commit, dirty = _repo_state()
     print(f"repo state: commit {commit} dirty={dirty}")
-    from leia.cli import main as cli_main
+    from beam.cli import main as cli_main
 
     started = time.monotonic()
     args = [

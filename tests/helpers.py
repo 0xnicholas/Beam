@@ -15,14 +15,14 @@ from typing import Any
 
 from tokenizers import Tokenizer, models, normalizers, pre_tokenizers
 
-from leia.delivery import PROBE_TEXT
+from beam.delivery import PROBE_TEXT
 
 VALID_CHECKPOINT_CONFIG = {
     "architectures": ["BertForTokenClassification"],
     "model_type": "bert",
     "num_labels": 2,
     "id2label": {"0": "drop", "1": "keep"},
-    "_name_or_path": "leia/leia-v1",
+    "_name_or_path": "beam/beam-v1",
 }
 
 

@@ -1,4 +1,4 @@
-"""`leia golden *` CLI: validate / manifest / build-rag / sysprompt and
+"""`beam golden *` CLI: validate / manifest / build-rag / sysprompt and
   dialogue families.
 
 External behavior only: argv in, files + stdout/stderr + exit codes out.
@@ -7,10 +7,10 @@ External behavior only: argv in, files + stdout/stderr + exit codes out.
 import json
 from pathlib import Path
 
-from leia.cli import main
-from leia.longbench import build_manifest
-from leia.sysprompt import load_families
-from leia.dialogue import load_families as load_dialogue_families
+from beam.cli import main
+from beam.longbench import build_manifest
+from beam.sysprompt import load_families
+from beam.dialogue import load_families as load_dialogue_families
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FAMILIES_TOML = REPO_ROOT / "eval" / "manifests" / "sysprompt_families.toml"
@@ -119,7 +119,7 @@ class TestGoldenBuildRag:
         first = out.read_text()
         assert main(args) == 0
         assert out.read_text() == first
-        from leia.golden import load_golden
+        from beam.golden import load_golden
 
         assert len(load_golden(out)) == 5
         capsys.readouterr()
@@ -199,7 +199,7 @@ class TestGoldenBuildSysprompt:
         first = out.read_text()
         assert main(args) == 0
         assert out.read_text() == first
-        from leia.golden import load_golden
+        from beam.golden import load_golden
 
         items = load_golden(out)
         assert [i.id for i in items] == [
@@ -303,7 +303,7 @@ class TestGoldenBuildDialogue:
         first = out.read_text()
         assert main(args) == 0
         assert out.read_text() == first
-        from leia.golden import load_golden
+        from beam.golden import load_golden
 
         items = load_golden(out)
         assert [i.id for i in items] == [
@@ -332,7 +332,7 @@ class TestGoldenBuildDialogue:
 def _write_pilot(path: Path, tamper_first: bool = False) -> None:
     families = load_families(FAMILIES_TOML)
     plan = {f["name"]: [f["eval_seed_range"][0]] for f in families}
-    from leia.sysprompt import build_sysprompt_entries
+    from beam.sysprompt import build_sysprompt_entries
 
     entries = build_sysprompt_entries(families, plan)
     if tamper_first:
@@ -348,7 +348,7 @@ def _write_dialogue_pilot(path: Path, tamper_first: bool = False) -> None:
         REPO_ROOT / "eval" / "manifests" / "dialogue_families.toml"
     )
     plan = {f["name"]: [f["eval_seed_range"][0]] for f in families}
-    from leia.dialogue import build_dialogue_entries
+    from beam.dialogue import build_dialogue_entries
 
     entries = build_dialogue_entries(families, plan)
     if tamper_first:

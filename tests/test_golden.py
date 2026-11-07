@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from leia.golden import GoldenError, GoldenItem, collect_golden_errors, load_golden
+from beam.golden import GoldenError, GoldenItem, collect_golden_errors, load_golden
 
 VALID = {
     "id": "rag-qasper-0001",

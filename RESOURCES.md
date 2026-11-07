@@ -1,4 +1,4 @@
-# Leia 压缩原理 Resources
+# Beam 压缩原理 Resources
 
 ## Knowledge
 
@@ -16,7 +16,7 @@
   验收尺：指标口径、冻结考卷、双 checkpoint 基线数字。用途：一切「好多少」的问题。
 - [本仓: `docs/data-strategy.md`](data-strategy.md)
   蒸馏管线与语料红线（MeetingBank 排除、客户 prompt 排除、train/eval 切分）。
-- [本仓: `src/leia/distill.py`](../src/leia/distill.py)
+- [本仓: `src/beam/distill.py`](../src/beam/distill.py)
   蒸馏管线的本地实现（分块、滑窗匹配、VR/AG 质控）。用途：论文没写清的启发式细节，以这里为准。
 - [宿主: `tokencamp-pro/sidecars/refine/compressor.py`](../../tokencamp-pro/sidecars/refine/compressor.py)
   生产运行时实现——本项目的原理最终以它为准。用途：任何「线上到底怎么走」的问题。
@@ -33,7 +33,7 @@
   部署者踩坑记录（语言覆盖、长文分块、延迟）。用途：真实负载与论文设定的差距。
 - [r/LocalLLaMA](https://www.reddit.com/r/LocalLLaMA/)
   关于 prompt compression 实践的高流量讨论区。用途：不同压缩方案的横向经验；信噪比波动大，需自带判据。
-- 本仓 GitHub Issues（0xnicholas/leia）
+- 本仓 GitHub Issues（0xnicholas/beam）
   自己的问题追踪与验收记录。用途：把诊断结论落成可复核的 issue，而不是留在对话里。
 
 ## Gaps

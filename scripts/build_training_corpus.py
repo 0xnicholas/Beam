@@ -1,6 +1,6 @@
 """Build the v1 training-corpus base layer (issue #16).
 
-Pinned invocation for `leia corpus build` + immediate full validation:
+Pinned invocation for `beam corpus build` + immediate full validation:
 
   - extracts the TRAIN half of every train-permitted LongBench subset
     (hotpotqa + gov_report; qasper is license-excluded, eval-only);
@@ -45,7 +45,7 @@ def _repo_state() -> tuple[str | None, bool | None]:
 
 
 def main() -> int:
-    from leia.corpus import collect_corpus_errors, golden_fingerprints, write_training_artifacts
+    from beam.corpus import collect_corpus_errors, golden_fingerprints, write_training_artifacts
 
     commit, dirty = _repo_state()
     lb_manifest = json.loads(LB_MANIFEST.read_text(encoding="utf-8"))

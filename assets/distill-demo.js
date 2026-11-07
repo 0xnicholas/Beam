@@ -11,7 +11,7 @@
      <div class="sim" id="sim-distill"></div>
      <script src="../assets/data/distill-samples.js"></script>
      <script src="../assets/distill-demo.js"></script>
-     <script>DistillDemo.mount(document.getElementById("sim-distill"), window.LEIA_DISTILL);</script>
+     <script>DistillDemo.mount(document.getElementById("sim-distill"), window.BEAM_DISTILL);</script>
 
    Token labels are the frozen run's own output: [word, 1=keep | 0=drop].
    The QC verdict reproduces the pipeline's rank rule: drop the top 5% by

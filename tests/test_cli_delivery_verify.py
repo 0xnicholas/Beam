@@ -1,4 +1,4 @@
-"""`leia delivery verify` — static drop-in contract checks (issue #11).
+"""`beam delivery verify` — static drop-in contract checks (issue #11).
 
 Black-box CLI tests: exit codes, stdout summary, machine-readable JSON
 report, content-addressed checkpoint identity. Fixtures are hand-built
@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from leia import __version__
-from leia.delivery import load_deps_available
+from beam import __version__
+from beam.delivery import load_deps_available
 from helpers import (
     VALID_CHECKPOINT_CONFIG as VALID_CONFIG,
     install_fake_load_deps,
@@ -31,7 +31,7 @@ def make_checkpoint_with_tokenizer(root: Path, name: str, tokenizer_writer) -> P
 
 
 def run_verify(directory: Path, *extra: str) -> int:
-    from leia.cli import main
+    from beam.cli import main
 
     return main(["delivery", "verify", str(directory), *extra])
 
@@ -64,7 +64,7 @@ class TestCompliantCheckpoint:
         assert exit_code == 0
         report = json.loads(report_path.read_text())
         assert report["overall"] == "pass"
-        assert report["harness"]["name"] == "leia"
+        assert report["harness"]["name"] == "beam"
         assert report["harness"]["version"] == __version__
         # content-addressed identity, not just a path
         checkpoint = report["checkpoint"]
@@ -265,7 +265,7 @@ class TestLoadLayer:
 
 class TestBadInvocations:
     def test_missing_directory_is_an_error(self, tmp_path, capsys):
-        from leia.cli import main
+        from beam.cli import main
 
         exit_code = main(["delivery", "verify", str(tmp_path / "nope")])
         assert exit_code != 0

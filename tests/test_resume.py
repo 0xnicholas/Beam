@@ -21,12 +21,12 @@ from pathlib import Path
 
 import pytest
 
-from leia.clients.gateway import StubGatewayClient
-from leia.golden import GoldenItem
-from leia.judge import rubric_sha256
-from leia.tasks import task_templates_sha256
-from leia.resume import ResumeError, load_replay
-from leia.task_quality import TaskQualityLoop
+from beam.clients.gateway import StubGatewayClient
+from beam.golden import GoldenItem
+from beam.judge import rubric_sha256
+from beam.tasks import task_templates_sha256
+from beam.resume import ResumeError, load_replay
+from beam.task_quality import TaskQualityLoop
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_RUN = None  # built per-test via the CLI helper below

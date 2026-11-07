@@ -1,13 +1,13 @@
 """CLI surface for the teacher distillation pipeline (issue #18):
-`leia distill run` — corpus manifest in, labeled dataset + QC report out."""
+`beam distill run` — corpus manifest in, labeled dataset + QC report out."""
 
 import json
 from pathlib import Path
 
 import pytest
 
-from leia.cli import main
-from leia.distill import build_freeze_record
+from beam.cli import main
+from beam.distill import build_freeze_record
 
 CORPUS_ROWS = [
     {
@@ -145,7 +145,7 @@ class TestDistillRun:
         assert main(args) == 0
         manifest = json.loads((tmp_path / "out" / "manifest.json").read_text(encoding="utf-8"))
         assert manifest["generated_by"] == {
-            "tool": "leia.distill",
+            "tool": "beam.distill",
             "repo_commit": "deadbeef",
             "repo_dirty": True,
         }

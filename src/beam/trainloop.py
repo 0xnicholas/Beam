@@ -28,7 +28,7 @@ from transformers import (  # type: ignore[import-not-found]
     set_seed,
 )
 
-from leia.train import (
+from beam.train import (
     ID2LABEL,
     LABEL2ID,
     TrainError,

@@ -4,7 +4,7 @@
    Mounts a widget that lets a reader break a candidate checkpoint one way
    at a time and watch the verdict move. The check ids, the detail strings
    and the remedy strings are lifted verbatim from the real verifier
-   (src/leia/delivery.py): the same seven checks, the same wording, the
+   (src/beam/delivery.py): the same seven checks, the same wording, the
    same pass / violation / unverified three-state rule. Only the toggles
    are invented — the code paths they represent are real export mistakes.
 

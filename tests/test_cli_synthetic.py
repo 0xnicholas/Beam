@@ -1,12 +1,12 @@
 """CLI surface for the synthetic training layers (issue #17):
-`leia corpus build-synthetic` + `leia corpus validate-synthetic`."""
+`beam corpus build-synthetic` + `beam corpus validate-synthetic`."""
 
 import json
 from pathlib import Path
 
 import pytest
 
-from leia.cli import main
+from beam.cli import main
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SYS_TOML = REPO_ROOT / "eval" / "manifests" / "sysprompt_families.toml"
@@ -57,7 +57,7 @@ class TestBuildSynthetic:
             (tmp_path / "synthetic-training.json").read_text(encoding="utf-8")
         )
         assert manifest["generated_by"] == {
-            "tool": "leia.synthetic",
+            "tool": "beam.synthetic",
             "repo_commit": "deadbeef",
             "repo_dirty": True,
         }

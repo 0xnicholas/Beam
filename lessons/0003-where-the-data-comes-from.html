@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>第 03 课 · 数据从哪来，红线在哪 — Leia 学习空间</title>
+<title>第 03 课 · 数据从哪来，红线在哪 — Beam 学习空间</title>
 <link rel="stylesheet" href="../assets/lesson.css">
 </head>
 <body>
 <main class="lesson">
 
-<p class="eyebrow">Leia 学习空间 · 第 03 课 · 面向团队</p>
+<p class="eyebrow">Beam 学习空间 · 第 03 课 · 面向团队</p>
 <h1>数据从哪来，红线在哪</h1>
 
 <p class="lede">模型的口味全部来自数据。这个项目的数据策略只有<em>两条不可谈判的红线</em>和一套可迭代的配比主张——其余的都是假设，红线不是。</p>
@@ -82,7 +82,7 @@
 
 <p>这条约束不是写在文档里的君子协定，而是代码里的硬检查——语料校验器对来源做字符串匹配，命中即判违约：</p>
 
-<pre><code># src/leia/corpus.py:404 —— 训练语料校验器
+<pre><code># src/beam/corpus.py:404 —— 训练语料校验器
 if "meetingbank" in f"{source.get('dataset','')}/{source.get('subset','')}".lower():
     fail("MeetingBank is excluded by hard constraint (base checkpoint training set)")</code></pre>
 
@@ -215,7 +215,7 @@ if "meetingbank" in f"{source.get('dataset','')}/{source.get('subset','')}".lowe
 <script src="../assets/distill-demo.js"></script>
 <script src="../assets/quiz.js"></script>
 <script>
-  DistillDemo.mount(document.getElementById("sim-distill"), window.LEIA_DISTILL);
+  DistillDemo.mount(document.getElementById("sim-distill"), window.BEAM_DISTILL);
 </script>
 </body>
 </html>

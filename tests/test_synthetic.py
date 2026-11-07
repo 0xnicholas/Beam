@@ -20,20 +20,20 @@ from pathlib import Path
 
 import pytest
 
-from leia.corpus import golden_fingerprints
-from leia.dialogue import (
+from beam.corpus import golden_fingerprints
+from beam.dialogue import (
     DialogueError,
     load_families as load_dialogue_families,
     synthesize_entry as synthesize_dialogue_eval,
     synthesize_training_entry as synthesize_dialogue_train,
 )
-from leia.sysprompt import (
+from beam.sysprompt import (
     SysPromptError,
     load_families as load_sysprompt_families,
     synthesize_entry as synthesize_sysprompt_eval,
     synthesize_training_entry as synthesize_sysprompt_train,
 )
-from leia.synthetic import (
+from beam.synthetic import (
     SyntheticError,
     collect_synthetic_errors,
     select_train_seed_plan,

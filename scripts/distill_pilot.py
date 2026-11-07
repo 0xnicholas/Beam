@@ -26,9 +26,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from leia.clients.gateway import HttpGatewayClient
-from leia.distill import run_distillation
-from leia.tokens import TokenCounter
+from beam.clients.gateway import HttpGatewayClient
+from beam.distill import run_distillation
+from beam.tokens import TokenCounter
 
 REPO = Path(__file__).resolve().parents[1]
 

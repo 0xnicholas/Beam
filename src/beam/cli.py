@@ -1,4 +1,4 @@
-"""leia CLI.
+"""beam CLI.
 
 Subcommand families: `eval *` (runs + sizing), `golden *` (schema,
 manifests, pilot generators), `corpus *` (training layers), `delivery *`
@@ -14,22 +14,22 @@ import sys
 import time
 from pathlib import Path
 
-from leia import __version__
-from leia.clients.gateway import (
+from beam import __version__
+from beam.clients.gateway import (
     GatewayClient,
     GatewayError,
     HttpGatewayClient,
     StubGatewayClient,
 )
-from leia.clients.sidecar import RefineError
-from leia.config import ConfigError, load_config
-from leia.corpus import (
+from beam.clients.sidecar import RefineError
+from beam.config import ConfigError, load_config
+from beam.corpus import (
     CorpusError,
     collect_corpus_errors,
     golden_fingerprints,
     write_training_artifacts,
 )
-from leia.delivery import (
+from beam.delivery import (
     DeliveryError,
     pack_checkpoint,
     print_pack_summary,
@@ -39,36 +39,36 @@ from leia.delivery import (
     verify_report_json,
     DEFAULT_DRAFT_PATH,
 )
-from leia.dialogue import (
+from beam.dialogue import (
     DialogueError,
     build_dialogue_entries,
     build_dialogue_manifest,
     load_families as load_dialogue_families,
     make_review as make_dialogue_review,
 )
-from leia.distill import DistillError, collect_distill_errors, run_distillation
-from leia.golden import GoldenError, collect_golden_errors, load_golden
-from leia.judge import JudgeError
-from leia.longbench import LongBenchError, build_manifest, build_rag_entries
-from leia.report import ReportWriterError
-from leia.resume import ResumeError
-from leia.runner import run_eval
-from leia.sizing import sizing_report
-from leia.tokens import TokenCounter
-from leia.synthetic import (
+from beam.distill import DistillError, collect_distill_errors, run_distillation
+from beam.golden import GoldenError, collect_golden_errors, load_golden
+from beam.judge import JudgeError
+from beam.longbench import LongBenchError, build_manifest, build_rag_entries
+from beam.report import ReportWriterError
+from beam.resume import ResumeError
+from beam.runner import run_eval
+from beam.sizing import sizing_report
+from beam.tokens import TokenCounter
+from beam.synthetic import (
     SyntheticError,
     collect_synthetic_errors,
     write_synthetic_artifacts,
 )
-from leia.sysprompt import (
+from beam.sysprompt import (
     SysPromptError,
     build_sysprompt_entries,
     build_sysprompt_manifest,
     load_families,
     make_review,
 )
-from leia.task_quality import TaskQualityError
-from leia.train import (
+from beam.task_quality import TaskQualityError
+from beam.train import (
     DEFAULT_BASE_MODEL,
     DEFAULT_BATCH_SIZE,
     DEFAULT_EPOCHS,
@@ -87,8 +87,8 @@ _ERROR_EXIT_CODE = 1
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="leia",
-        description="Leia evaluation harness (prompt-compression yardstick).",
+        prog="beam",
+        description="Beam evaluation harness (prompt-compression yardstick).",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     subparsers = parser.add_subparsers(dest="command", required=True)
